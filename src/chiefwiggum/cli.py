@@ -211,5 +211,242 @@ def analyze(surface, hypothesis, path):
         click.echo(f"✗ Error: {e}", err=True)
 
 
+@main.command()
+@click.option("--hypothesis", required=True, help="Path to hypothesis file (.md)")
+@click.option("--codebase-path", required=True, help="Path to target codebase")
+@click.option("--path", default=".", help="Project root")
+def validate(hypothesis, codebase_path, path):
+    """Validate hypothesis against actual source code"""
+    try:
+        import re
+        from pathlib import Path
+
+        project_root = load_project(path)
+        evaluator = Evaluator(project_root)
+
+        # Read hypothesis file
+        hyp_file = Path(hypothesis)
+        if not hyp_file.exists():
+            raise FileNotFoundError(f"Hypothesis file not found: {hypothesis}")
+
+        hyp_content = hyp_file.read_text()
+
+        # Extract hypothesis ID from filename
+        hyp_id = hyp_file.stem
+
+        # Extract key sections from hypothesis
+        location_match = re.search(r'\*\*Location:\*\*\s*`([^`]+)`', hyp_content)
+        sink_match = re.search(r'\*\*Function:\*\*\s*`([^`]+)`', hyp_content)
+
+        location = location_match.group(1) if location_match else "unknown"
+        sink = sink_match.group(1) if sink_match else "unknown"
+
+        click.echo(f"\n{'='*80}")
+        click.echo(f"Validating: {hyp_id}")
+        click.echo(f"Location: {location}")
+        click.echo(f"Sink: {sink}")
+        click.echo(f"Codebase: {codebase_path}")
+        click.echo(f"{'='*80}\n")
+
+        # Search codebase for vulnerability pattern
+        codebase = Path(codebase_path)
+        if not codebase.exists():
+            raise FileNotFoundError(f"Codebase not found: {codebase_path}")
+
+        # Extract file path from location (e.g., "org/apache/.../File.java:method()")
+        file_parts = location.split(":")[0].replace(".", "/").replace("/java", ".java")
+
+        # Search for vulnerable patterns
+        found = False
+        evidence = []
+
+        for java_file in codebase.rglob("*.java"):
+            # Try to match by filename
+            if file_parts in str(java_file):
+                content = java_file.read_text()
+
+                # Extract sink function name
+                sink_func = sink.split("(")[0] if "(" in sink else sink
+
+                # Search for dangerous patterns
+                if "readObject" in sink or "deserial" in sink.lower():
+                    if "ObjectInputStream" in content or "readObject" in content:
+                        found = True
+                        evidence.append((str(java_file), "ObjectInputStream deserialization found"))
+
+                if "Class.forName" in sink or "ClassLoader" in sink:
+                    if "Class.forName" in content and ("newInstance" in content or "getConstructor" in content):
+                        found = True
+                        evidence.append((str(java_file), "Unsafe Class.forName() + instantiation found"))
+
+                if "exec" in sink or "Runtime" in sink:
+                    if "Runtime.getRuntime()" in content or "ProcessBuilder" in content:
+                        found = True
+                        evidence.append((str(java_file), "Runtime.exec() or ProcessBuilder found"))
+
+                if "parse" in sink.lower() and "expression" in hyp_id.lower():
+                    if "parseExpression" in content or "evaluate" in content:
+                        found = True
+                        evidence.append((str(java_file), "Expression evaluation found"))
+
+        # Report results
+        if found and evidence:
+            click.echo(f"✓ CONFIRMED - Vulnerable pattern exists\n")
+            for file_path, finding in evidence:
+                click.echo(f"  Found in: {file_path}")
+                click.echo(f"  Evidence: {finding}")
+                click.echo()
+
+            status = "CONFIRMED"
+            result = True
+        else:
+            click.echo(f"⚠ UNCLEAR - Code pattern not found in search\n")
+            click.echo(f"  Searched for: {sink}")
+            click.echo(f"  In path: {location}")
+            click.echo(f"  Note: Manual code review may be needed")
+            click.echo()
+
+            status = "UNCLEAR"
+            result = None
+
+        click.echo(f"{'='*80}")
+        click.echo(f"Status: {status}")
+        click.echo(f"Next: Run 'chiefwiggum record {hyp_id} --{status.lower()} ...' to record result")
+        click.echo(f"{'='*80}\n")
+
+    except Exception as e:
+        click.echo(f"✗ Error: {e}", err=True)
+
+
+@main.command()
+@click.option("--target-url", required=True, help="Target URL (extracts project name from URL)")
+@click.option("--path", default=".", help="Project root directory")
+@click.option("--validate/--no-validate", default=False, help="Validate hypotheses against codebase")
+@click.option("--codebase-path", default=None, help="Path to target codebase for validation")
+def orchestrate(target_url, path, validate, codebase_path):
+    """Run end-to-end vulnerability testing loop: init → enumerate → analyze → record → report"""
+    try:
+        from pathlib import Path
+
+        project_path = Path(path)
+
+        click.echo("=" * 80)
+        click.echo("ChiefWiggum Loop Orchestration")
+        if validate:
+            click.echo("(with codebase validation)")
+        click.echo("=" * 80)
+
+        # Phase 1: Initialize project if needed
+        click.echo("\n[1/5] Initialize project...")
+        if not (project_path / "ground_truth").exists():
+            click.echo(f"  Initializing {target_url}")
+            init_in_place(target_url)
+            click.echo("  ✓ Project initialized")
+        else:
+            click.echo("  ✓ Project already initialized")
+
+        # Phase 2: Load project
+        click.echo("\n[2/5] Load project...")
+        project_root_str = load_project(str(project_path))
+        evaluator = Evaluator(project_root_str)
+        click.echo(f"  ✓ Loaded from {project_root_str}")
+
+        # Phase 3: Enumerate and analyze surfaces
+        click.echo("\n[3/5] Enumerate attack surfaces...")
+        surfaces_file = str(Path(project_root_str) / "surfaces" / "SURFACES.yaml")
+        if Path(surfaces_file).exists():
+            click.echo(f"  ✓ Found surfaces file")
+        else:
+            click.echo(f"  ⚠ No surfaces file")
+
+        # Phase 4: Validate hypotheses against codebase
+        click.echo("\n[4/5] Validate hypotheses...")
+        hypotheses_dir = str(Path(project_root_str) / "hypotheses")
+        hypothesis_files = [f for f in Path(hypotheses_dir).glob("hyp_*.md")]
+
+        if hypothesis_files:
+            click.echo(f"  Found {len(hypothesis_files)} hypothesis(es)")
+
+            if validate and codebase_path:
+                codebase = Path(codebase_path)
+                if not codebase.exists():
+                    click.echo(f"  ⚠ Codebase path not found: {codebase_path}")
+                    click.echo(f"    Skipping validation")
+                else:
+                    click.echo(f"  Validating against: {codebase_path}")
+
+                    import re
+                    validated_count = 0
+
+                    for hyp_file in hypothesis_files:
+                        hyp_id = hyp_file.stem
+                        hyp_content = hyp_file.read_text()
+
+                        # Extract location and sink from hypothesis
+                        location_match = re.search(r'\*\*Location:\*\*\s*`([^`]+)`', hyp_content)
+                        sink_match = re.search(r'\*\*Function:\*\*\s*`([^`]+)`', hyp_content)
+
+                        location = location_match.group(1) if location_match else "unknown"
+                        sink = sink_match.group(1) if sink_match else "unknown"
+
+                        # Search for dangerous patterns
+                        found = False
+                        evidence_list = []
+
+                        for java_file in codebase.rglob("*.java"):
+                            try:
+                                content = java_file.read_text()
+                            except:
+                                continue
+
+                            # Check for dangerous patterns based on sink
+                            if any(pattern in content for pattern in ["ObjectInputStream", "readObject"]) and "deserial" in sink.lower():
+                                found = True
+                                evidence_list.append(f"{java_file.name} (ObjectInputStream)")
+                            elif "Class.forName" in content and any(p in content for p in ["newInstance", "getConstructor"]):
+                                if "forName" in sink or "ClassLoader" in sink:
+                                    found = True
+                                    evidence_list.append(f"{java_file.name} (Class.forName)")
+                            elif any(p in content for p in ["Runtime.getRuntime()", "ProcessBuilder"]) and ("exec" in sink or "Runtime" in sink):
+                                found = True
+                                evidence_list.append(f"{java_file.name} (Runtime/ProcessBuilder)")
+                            elif any(p in content for p in ["parseExpression", "evaluate", "eval"]) and "expression" in hyp_id.lower():
+                                found = True
+                                evidence_list.append(f"{java_file.name} (Expression evaluation)")
+
+                        status = "CONFIRMED" if found else "UNCLEAR"
+                        symbol = "✓" if found else "⚠"
+                        click.echo(f"    {symbol} {hyp_id}: {status}", err=True if not found else False)
+
+                        if evidence_list:
+                            for evidence in evidence_list[:2]:  # Show first 2 matches
+                                click.echo(f"       → {evidence}")
+
+                        validated_count += 1
+
+                    click.echo(f"  ✓ Validated {validated_count} hypotheses")
+            else:
+                click.echo(f"  To validate, run with:")
+                click.echo(f"    --validate --codebase-path /path/to/activemq")
+                for hyp_file in hypothesis_files[:3]:
+                    click.echo(f"    - {hyp_file.name}")
+                if len(hypothesis_files) > 3:
+                    click.echo(f"    ... and {len(hypothesis_files) - 3} more")
+        else:
+            click.echo("  ⚠ No hypotheses found")
+
+        # Phase 5: Generate report
+        click.echo("\n[5/5] Generate hardening backlog...")
+        report_output = evaluator.control_map_report()
+        click.echo(report_output)
+
+        click.echo("\n" + "=" * 80)
+        click.echo("Loop Complete: D'oh! I found it!")
+        click.echo("=" * 80)
+
+    except Exception as e:
+        click.echo(f"\n✗ Error: {e}", err=True)
+
+
 if __name__ == "__main__":
     main()
