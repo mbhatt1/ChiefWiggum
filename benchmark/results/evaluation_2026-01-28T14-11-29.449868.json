@@ -1,0 +1,174 @@
+{
+  "timestamp": "2026-01-28T14:11:29.449868",
+  "dataset_size": 100,
+  "analyses_count": 300,
+  "metrics": {
+    "openai-gpt-4o": {
+      "tool": "openai-gpt-4o",
+      "detection_rate": 100.0,
+      "true_positive_rate": 100.0,
+      "false_positive_rate": 0.0,
+      "avg_patch_quality": 84.32203389830508,
+      "avg_detection_time": 4.942059658341488,
+      "total_analyses": 59,
+      "successful_patches": 59,
+      "cost_estimate": 51.33
+    },
+    "chiefwiggum": {
+      "tool": "chiefwiggum",
+      "detection_rate": 59.0,
+      "true_positive_rate": 100.0,
+      "false_positive_rate": 0.0,
+      "avg_patch_quality": 86.69491525423729,
+      "avg_detection_time": 3.7782799291610716,
+      "total_analyses": 100,
+      "successful_patches": 59,
+      "cost_estimate": 87.0
+    },
+    "openai-gpt-4o-mini": {
+      "tool": "openai-gpt-4o-mini",
+      "detection_rate": 100.0,
+      "true_positive_rate": 100.0,
+      "false_positive_rate": 0.0,
+      "avg_patch_quality": 85.0,
+      "avg_detection_time": 4.704308592039963,
+      "total_analyses": 58,
+      "successful_patches": 58,
+      "cost_estimate": 50.46
+    },
+    "openai-haiku": {
+      "tool": "openai-haiku",
+      "detection_rate": 0.0,
+      "true_positive_rate": 0,
+      "false_positive_rate": 0,
+      "avg_patch_quality": 0.0,
+      "avg_detection_time": 1.5047413053966703,
+      "total_analyses": 42,
+      "successful_patches": 0,
+      "cost_estimate": 36.54
+    },
+    "openai-opus": {
+      "tool": "openai-opus",
+      "detection_rate": 0.0,
+      "true_positive_rate": 0,
+      "false_positive_rate": 0,
+      "avg_patch_quality": 0.0,
+      "avg_detection_time": 1.5320725906185988,
+      "total_analyses": 41,
+      "successful_patches": 0,
+      "cost_estimate": 35.67
+    }
+  },
+  "sample_analyses": [
+    {
+      "tool": "openai-gpt-4o",
+      "vulnerability_id": "njs.cve-2022-32414__0",
+      "detected": true,
+      "confidence": "HIGH",
+      "time_seconds": 4.35104775428772,
+      "patch_generated": true,
+      "patch_quality_score": 85.0,
+      "false_positive": false,
+      "reasoning": "The vulnerability is a real security issue as it involves a heap-buffer-overflow in a string concatenation function, which can lead to memory corruption. This type of vulnerability can potentially be exploited for arbitrary code execution or cause a denial of service by crashing the application. The patch addresses the issue by adding a bounds check, which is a common and effective mitigation technique for preventing out-of-bounds writes. However, without additional context on the implementation details, such as whether all possible paths leading to the overflow are covered, the patch is considered a good mitigation rather than a comprehensive fix. Therefore, the patch quality is rated at 85, indicating a solid improvement but leaving room for further verification and testing to ensure completeness."
+    },
+    {
+      "tool": "chiefwiggum",
+      "vulnerability_id": "njs.cve-2022-32414__4",
+      "detected": true,
+      "confidence": "HIGH",
+      "time_seconds": 4.429341793060303,
+      "patch_generated": true,
+      "patch_quality_score": 90.0,
+      "false_positive": false,
+      "reasoning": "The vulnerability is a real security issue as it involves a heap-buffer-overflow in a string concatenation function, which can lead to memory corruption, crashes, or potentially arbitrary code execution. The severity is high due to the potential for exploitation, especially in a widely used project like nginx/njs. The patch addresses the root cause by adding a bounds check, preventing out-of-bounds writes. This effectively mitigates the vulnerability by ensuring that memory writes are within the allocated buffer limits. The patch quality is rated at 90 because it provides a complete fix with no apparent residual risk, assuming the bounds check is correctly implemented and covers all edge cases."
+    },
+    {
+      "tool": "openai-gpt-4o-mini",
+      "vulnerability_id": "njs.cve-2022-32414__4",
+      "detected": true,
+      "confidence": "HIGH",
+      "time_seconds": 4.795961856842041,
+      "patch_generated": true,
+      "patch_quality_score": 85.0,
+      "false_positive": false,
+      "reasoning": "The vulnerability identified as a heap-buffer-overflow in the string concatenation function is a serious security issue, as it can lead to memory corruption, potential arbitrary code execution, or denial of service. The out-of-bounds write allows attackers to manipulate memory beyond the allocated buffer, which can be exploited to execute malicious payloads or crash the application. The patch indicates that a bounds check has been added, which is a critical step in mitigating the vulnerability. However, the effectiveness of the patch depends on the thoroughness of the bounds checking and whether it covers all possible edge cases. Given that the patch addresses the core issue but may not be exhaustive in its coverage, it is rated as a good mitigation rather than a comprehensive fix."
+    },
+    {
+      "tool": "openai-gpt-4o-mini",
+      "vulnerability_id": "gpac.cve-2023-5586__3",
+      "detected": true,
+      "confidence": "HIGH",
+      "time_seconds": 5.066603899002075,
+      "patch_generated": true,
+      "patch_quality_score": 85.0,
+      "false_positive": false,
+      "reasoning": "The null pointer dereference in the video parser is a real security vulnerability as it can lead to application crashes or denial of service (DoS) when the parser attempts to access memory through a null pointer. This can be exploited by an attacker to disrupt service or potentially execute arbitrary code if the application is running with elevated privileges. The patch adds a null check, which is a standard mitigation for this type of vulnerability. However, the effectiveness of the patch depends on whether it covers all possible code paths that could lead to a null pointer dereference. If the null check is comprehensive and properly placed, it significantly reduces the risk of exploitation. The patch quality score of 85 reflects that it is a good mitigation but may not be fully comprehensive without further context on the codebase and testing against all edge cases."
+    },
+    {
+      "tool": "openai-gpt-4o-mini",
+      "vulnerability_id": "njs.cve-2022-32414__0",
+      "detected": true,
+      "confidence": "HIGH",
+      "time_seconds": 5.226511240005493,
+      "patch_generated": true,
+      "patch_quality_score": 85.0,
+      "false_positive": false,
+      "reasoning": "The vulnerability identified as a heap-buffer-overflow in the string concatenation function is a real security vulnerability that can lead to memory corruption, which may allow an attacker to execute arbitrary code or cause a denial of service. The out-of-bounds write can overwrite adjacent memory, potentially leading to exploitation. The patch adds bounds checking, which is a necessary step to mitigate the risk of such overflows. However, the effectiveness of the patch depends on the thoroughness of the bounds checking and whether it covers all possible edge cases. While the patch is a good mitigation, without full context on the implementation and testing, it cannot be deemed comprehensive. Thus, a score of 85 reflects a good mitigation with room for improvement."
+    },
+    {
+      "tool": "openai-gpt-4o-mini",
+      "vulnerability_id": "gpac.cve-2023-5586__1",
+      "detected": true,
+      "confidence": "HIGH",
+      "time_seconds": 5.367268085479736,
+      "patch_generated": true,
+      "patch_quality_score": 85.0,
+      "false_positive": false,
+      "reasoning": "The null pointer dereference in the video parser is a real security vulnerability as it can lead to undefined behavior, potentially allowing an attacker to crash the application or exploit it for further attacks. The impact includes memory safety issues and potential denial of service, as the application may terminate unexpectedly when attempting to access a null pointer. The patch adds a null check, which is a standard mitigation for this type of vulnerability. However, the effectiveness of the patch depends on the thoroughness of the null check and whether it covers all possible code paths that could lead to the dereference. While the patch is a good mitigation, it may not be comprehensive if there are other areas in the code that could also lead to null pointer dereferences. Therefore, the patch quality score is set at 85, indicating a good mitigation but with room for improvement."
+    },
+    {
+      "tool": "openai-gpt-4o",
+      "vulnerability_id": "gpac.cve-2023-5586__3",
+      "detected": true,
+      "confidence": "HIGH",
+      "time_seconds": 5.371534109115601,
+      "patch_generated": true,
+      "patch_quality_score": 85.0,
+      "false_positive": false,
+      "reasoning": "The vulnerability is a null pointer dereference in the video parser of the gpac project, which is a real security vulnerability. Null pointer dereferences can lead to denial of service (DoS) by causing the application to crash when it attempts to access memory through a null pointer. This does not typically lead to code execution or memory corruption, but it can be exploited to disrupt service availability. The patch addresses the issue by adding a null check, which is a common and effective mitigation for this type of vulnerability. However, without additional context on how the null check is implemented or if there are other potential null dereferences in the code, the patch is considered a good mitigation rather than a comprehensive fix. Therefore, the patch quality score is 85, indicating a good mitigation but not a complete assurance against all related issues."
+    },
+    {
+      "tool": "chiefwiggum",
+      "vulnerability_id": "gpac.cve-2023-5586__1",
+      "detected": true,
+      "confidence": "HIGH",
+      "time_seconds": 5.38521409034729,
+      "patch_generated": true,
+      "patch_quality_score": 85.0,
+      "false_positive": false,
+      "reasoning": "The vulnerability described is a null pointer dereference in the video parser of the GPAC project. Null pointer dereferences can lead to application crashes and potentially denial of service, which is a valid security concern, especially in applications that handle untrusted input. The patch addresses the issue by adding a null check, which is a common and effective way to prevent null pointer dereferences. However, the patch quality is rated at 85 because while the null check prevents the immediate crash, it does not address any underlying logic errors that might have led to the null pointer being dereferenced in the first place. The patch effectively mitigates the symptom but may not address the root cause if the null pointer is a result of a deeper issue in the code logic."
+    },
+    {
+      "tool": "openai-gpt-4o",
+      "vulnerability_id": "gpac.cve-2023-5586__1",
+      "detected": true,
+      "confidence": "HIGH",
+      "time_seconds": 5.473395109176636,
+      "patch_generated": true,
+      "patch_quality_score": 85.0,
+      "false_positive": false,
+      "reasoning": "The vulnerability is a null pointer dereference in the video parser of the GPAC project, which is a real security vulnerability. Null pointer dereferences can lead to denial of service (DoS) by causing the application to crash when it attempts to access memory that has not been allocated. In this case, the impact is primarily denial of service, as there is no indication of memory corruption or arbitrary code execution. The patch adds a null check, which is a common and effective way to prevent null pointer dereferences. However, the patch quality is rated at 85 because while it mitigates the immediate issue, it may not address underlying logic errors or ensure that all potential null dereferences are covered throughout the codebase. A more comprehensive fix would involve a thorough audit of the code to ensure all pointers are properly initialized and checked before use."
+    },
+    {
+      "tool": "openai-gpt-4o",
+      "vulnerability_id": "njs.cve-2022-32414__2",
+      "detected": true,
+      "confidence": "HIGH",
+      "time_seconds": 5.644829034805298,
+      "patch_generated": true,
+      "patch_quality_score": 85.0,
+      "false_positive": false,
+      "reasoning": "The vulnerability is a real security issue as it involves a heap-buffer-overflow in a string concatenation function, which can lead to memory corruption. This type of vulnerability can potentially be exploited for arbitrary code execution or cause a denial of service by crashing the application. The patch addresses the issue by adding a bounds check, which is a common and effective mitigation technique for preventing out-of-bounds writes. However, without reviewing the entire context of the code and the specific implementation of the bounds check, it's difficult to assess if all edge cases are covered. Therefore, while the patch is likely effective, there is a possibility that it may not be comprehensive, leading to a patch quality score of 85."
+    }
+  ]
+}

@@ -1,316 +1,355 @@
 # ChiefWiggum Loop
 
-**D'oh! I found it!** — A security vulnerability testing loop that actually converges.
+**D'oh! I found it!** — A structured vulnerability testing framework with persistent memory.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.9+](https://img.shields.io/badge/Python-3.9+-blue.svg)](https://www.python.org/downloads/)
 
 ## What Is It?
 
-ChiefWiggum Loop is a structured methodology for security vulnerability analysis that prevents infinite re-discovery through persistent evidence ledgers.
+ChiefWiggum Loop is a framework for structured security vulnerability analysis that uses persistent evidence ledgers to avoid re-testing hypotheses.
 
-**The problem:** Traditional security testing loops endlessly, re-testing the same hypotheses.
+**The problem:** Security testing wastes time re-analyzing the same code and re-testing the same hypotheses.
 
-**The solution:** Record what you tested (both confirmed and disproven) so you never test it again.
+**The solution:** Record evidence (confirmed, disproven, or unclear) in a ledger that persists across analysis iterations.
 
-## Quick Example
+## Quick Start
 
 ```bash
-# 1. Define your target
-cat > ground_truth/TARGET.md << 'EOF'
-# Target: MyApp v1.0
-Asset: file upload handler
-Threat: RCE via shell metacharacters
-EOF
+# Run end-to-end vulnerability analysis with orchestration
+chiefwiggum orchestrate \
+  --target-url "https://github.com/apache/activemq" \
+  --codebase-path "/tmp/activemq" \
+  --validate
 
-# 2. List reachable surfaces
-cat > surfaces/SURFACES.yaml << 'EOF'
-- id: upload_shell_injection
-  entry: POST /api/upload
-  chain:
-    - filename extraction (upload.c:45)
-    - popen() call (unzip.c:92)
-  status: untested
-EOF
-
-# 3. Test one hypothesis at a time
-cat > hypotheses/hyp_001.md << 'EOF'
-Claim: Shell metacharacters bypass sanitization
-Path: POST /upload → popen()
-Proof: Command execution visible in response
-EOF
-
-# 4. Run PoC
-zip test.zip file.txt
-mv test.zip '`id`.zip'
-curl -F 'file=@`id`.zip' http://localhost/api/upload
-# Output: uid=1000 gid=1000 → CONFIRMED
-
-# 5. Record evidence
-cat > evidence/confirmed/hyp_001.md << 'EOF'
-Status: ✓ CONFIRMED
-Sink: upload.c:45 → unzip.c:92
-Root cause: No escaping before popen()
-EOF
+# Output:
+# ✓ Found 20+ hypotheses
+# ✓ Validated against codebase
+# ✓ Generated hardening backlog (patches, controls, instrumentation)
 ```
 
-**The magic:** Next time you hypothesize, check `evidence/disproven/` first — skip anything already tested.
+## The Orchestration Loop
 
-## Key Results
-
-Evaluated against 10 SEC-bench vulnerabilities:
-
-| Metric | Unstructured Claude | ChiefWiggum | Improvement |
-|--------|-------------------|-------------|------------|
-| Clarity | 0.65 | 0.95 | **+30%** |
-| Completeness | 0.55 | 0.85 | **+30%** |
-| Reusability | 0% | 100% | **+100pp** |
-| Sink Accuracy | 100% | 100% | Tied |
-| Convergence | ~2 iterations | 1.0 | **2x faster** |
-
-**Result:** ChiefWiggum wins 10/10 scenarios tested.
-
-## The Loop
+The `orchestrate` command runs a complete vulnerability testing cycle:
 
 ```
-while not DONE:
-  1. Ground Truth    (TARGET.md)      ← Prevent hallucination
-  2. Enumerate       (SURFACES.yaml)  ← Reachability graph
-  3. Hypothesize     (HYPOTHESIS.md)  ← One claim per iteration
-  4. Test            (PoC script)     ← Observable proof only
-  5. Record          (EVIDENCE/)      ← Never retry dead ends
+1. Initialize     → Create project structure (ground_truth/, hypotheses/, evidence/)
+2. Enumerate      → Identify attack surfaces from codebase
+3. Hypothesize    → Generate vulnerability hypotheses
+4. Validate       → Test hypotheses against target codebase
+5. Report         → Generate prioritized hardening backlog
 ```
 
-## When to Use
+## What Gets Generated
 
-✅ **ChiefWiggum is ideal for:**
-- Teams analyzing vulnerabilities
-- Building CVE knowledge bases
-- Validating patches
-- Complex data flows (4+ hops)
-- 10+ vulnerabilities to track
-- CI/CD automation
+After orchestration, you have:
 
-⚠️ **Other tools better for:**
-- Solo developer, one-off fix
-- Raw fuzzing campaigns
-- Quick triage (use unstructured first)
+```
+project/
+├── ground_truth/
+│   └── TARGET.md                 ← Target asset & threat model
+├── surfaces/
+│   └── SURFACES.yaml             ← Attack surfaces (entry → sink)
+├── hypotheses/
+│   ├── hyp_001_openwire_gadgetchain.md
+│   ├── hyp_002_stomp_rce.md
+│   └── ... (20+ hypotheses)
+└── evidence/
+    ├── confirmed/
+    │   └── hyp_001.json          ✓ Confirmed vulnerabilities
+    ├── disproven/
+    │   └── hyp_005.json          ✗ Already tested, safe
+    └── unclear/
+        └── hyp_003.json          ? Needs instrumentation
+```
+
+## Key Features
+
+✅ **Evidence Ledger** — Never re-test the same hypothesis
+✅ **Control Map Report** — Prioritized hardening backlog
+✅ **Multi-Stage Attack Detection** — Catch complex vulnerability chains
+✅ **Codebase Validation** — Test hypotheses against real code
+✅ **Reusable Format** — Machine-parseable YAML/JSON output
 
 ## Installation
 
 ```bash
-# Clone the repo
-git clone https://github.com/yourusername/chiefwiggum-loop
-cd chiefwiggum-loop
+# From source
+git clone https://github.com/mbhatt1/ChiefWiggum
+cd ChiefWiggum
+pip install -e .
 
-# Install dependencies
-pip install -r requirements.txt
-
-# Or with pip
+# Or from PyPI (when published)
 pip install chiefwiggum-loop
 ```
 
-## Usage
+## Command Line Usage
 
-### As a Python Module
-
-```python
-from chiefwiggum import Evaluator, create_project
-
-# Create a new project
-project = create_project("MyApp", "/path/to/app")
-
-# Evaluate a vulnerability
-evaluator = Evaluator(project)
-evaluator.add_target("RCE via file upload")
-evaluator.enumerate_surfaces()
-evaluator.test_hypothesis("Shell metacharacters bypass sanitization")
-evaluator.record_evidence(confirmed=True)
-```
-
-### Command Line
+### Initialize a New Project
 
 ```bash
-# Create new project
-chiefwiggum init my_security_audit
+chiefwiggum init --target-url "https://github.com/yourorg/yourapp"
+```
 
-# Add target
-chiefwiggum target "MyApp v1.0" --threat "RCE via upload"
+Creates project structure and seed hypotheses.
 
-# Enumerate surfaces
-chiefwiggum surfaces scan src/
+### Run Complete Analysis (Recommended)
 
-# Test hypothesis
-chiefwiggum test "Shell injection at upload.c:45"
+```bash
+chiefwiggum orchestrate \
+  --target-url "https://github.com/yourorg/yourapp" \
+  --codebase-path /path/to/source \
+  --validate
+```
 
-# Show evidence ledger
-chiefwiggum evidence list
-chiefwiggum evidence show hyp_001
+Runs all 5 phases and generates a hardening backlog.
 
-# Generate report
-chiefwiggum report generate --output report.md
+### View Evidence Ledger
+
+```bash
+chiefwiggum ledger list
+
+# Output:
+# ✓ Confirmed:  15
+# ✗ Disproven:   3
+# ? Unclear:     2
+```
+
+### Generate Reports
+
+```bash
+chiefwiggum report generate --format text
+chiefwiggum report generate --format json
+```
+
+Outputs hardening backlog grouped by:
+- **PATCHES READY** — Confirmed vulnerabilities needing code fixes
+- **CONTROLS NEEDED** — Confirmed vulnerabilities needing hardening controls
+- **INSTRUMENTATION NEEDED** — Unclear results needing more data
+
+### Record a Hypothesis Result
+
+```bash
+chiefwiggum record hyp_001 \
+  --confirmed \
+  --location "src/RCE.java:123" \
+  --description "ClassPathXmlApplicationContext gadget chain confirmed" \
+  --action PATCH \
+  --patch-location "org/apache/activemq/openwire/v12/BaseDataStreamMarshaller.java"
 ```
 
 ## Project Structure
 
 ```
-my_security_audit/
-├── ground_truth/
-│   └── TARGET.md              ← Asset, threat model, attacker
-├── surfaces/
-│   └── SURFACES.yaml          ← Entry points → sinks
+chiefwiggum-loop/
+├── src/chiefwiggum/
+│   ├── core.py              ← EvidenceLedger, Evaluator, Hypothesis
+│   ├── cli.py               ← Command-line interface (orchestrate, ledger, report)
+│   ├── project.py           ← Project initialization & loading
+│   ├── detectors.py         ← Attack chain detectors
+│   ├── control.py           ← C-001 to C-012 control definitions
+│   └── hypothesis_generator.py ← Hypothesis template generation
+├── benchmark/
+│   ├── secbench_runner.py   ← Evaluation benchmark for testing
+│   └── README.md
 ├── hypotheses/
-│   ├── hyp_001.md             ← First hypothesis
-│   └── hyp_002.md
-├── pocs/
-│   ├── upload_shell_injection.sh
-│   └── config_injection.py
-└── evidence/
-    ├── confirmed/
-    │   └── hyp_001_rce.md     ✓ Confirmed vulnerable
-    ├── disproven/
-    │   └── hyp_003_xxe.md     ✗ Already tested, safe
-    └── unclear/
-        └── hyp_004_race.md     ? Inconclusive
+│   ├── hyp_*.md             ← Hypothesis templates (20+ patterns)
+│   └── template.md
+├── README.md                ← This file
+└── setup.py
 ```
 
-## Documentation
+## Core Components
 
-- **[Getting Started](docs/QUICKSTART.md)** — 5-minute intro
-- **[Methodology Guide](docs/METHODOLOGY.md)** — Deep dive
-- **[CLI Reference](docs/CLI.md)** — Command line usage
-- **[Examples](examples/)** — Worked walkthroughs
-- **[Evaluation Results](docs/EVALUATION.md)** — Benchmark vs unstructured
+### EvidenceLedger
+
+Persistent memory of tested hypotheses:
+
+```python
+from chiefwiggum import EvidenceLedger, EvidenceType, ActionType
+
+ledger = EvidenceLedger(project_root)
+
+# Record a confirmed vulnerability
+ledger.add_evidence(
+    hypothesis_id="hyp_001_openwire_gadgetchain",
+    evidence_type=EvidenceType.CONFIRMED,
+    code_location="BaseDataStreamMarshaller.java:310",
+    description="ClassPathXmlApplicationContext gadget chain present",
+    action=ActionType.PATCH,
+    patch_location="BaseDataStreamMarshaller.java:createThrowable()"
+)
+
+# Check if already tested
+if ledger.has_been_tested("hyp_002"):
+    print("Skip: already tested")
+
+# List all confirmed
+for evidence in ledger.list_confirmed():
+    print(f"{evidence.hypothesis_id}: {evidence.code_location}")
+```
+
+### Evaluator
+
+Main testing harness for evaluating hypotheses:
+
+```python
+from chiefwiggum import Evaluator, EvidenceType, ActionType
+
+evaluator = Evaluator(project_root)
+
+# Test a hypothesis
+evaluator.ledger.add_evidence(
+    hypothesis_id="hyp_003_xml_xxe",
+    evidence_type=EvidenceType.CONFIRMED,
+    code_location="XMLParser.java:45",
+    description="XXE entity expansion enabled",
+    action=ActionType.CONTROL,
+    control_id="C-006"
+)
+
+# Get summary
+summary = evaluator.get_summary()
+print(f"Confirmed: {summary['confirmed']}/20")
+
+# Generate control map report
+print(evaluator.control_map_report())
+```
+
+### SurfaceEnumerator
+
+Identify dangerous functions in codebase:
+
+```python
+from chiefwiggum import SurfaceEnumerator
+
+enumerator = SurfaceEnumerator(source_root)
+surfaces = enumerator.enumerate()
+
+# Returns list of dangerous functions
+# (sinks like Runtime.exec, ObjectInputStream, etc.)
+```
+
+## Control Map Report
+
+The `orchestrate` command generates a prioritized hardening backlog:
+
+```
+PATCHES READY (19 items) ← Start here for quick wins
+  [hyp_001_openwire_gadgetchain] OpenWire gadget chain RCE
+    Location: BaseDataStreamMarshaller.java:createThrowable()
+    Test: testOpenWireRejectsClassPathXmlApplicationContext
+    Status: ✓ CONFIRMED
+
+CONTROLS NEEDED (1 item) ← Deploy these hardening controls
+  [hyp_003_xml_xxe] XXE entity expansion in XML parser
+    Control: C-006 (Disable XXE)
+    Status: ✓ CONFIRMED, needs C-006
+
+INSTRUMENTATION NEEDED (0 items) ← Add logging to resolve
+BLOCKERS / SAFE SURFACES (0 items) ← Safe (no action needed)
+```
+
+## Hypothesis Templates
+
+The framework includes 20+ built-in hypothesis templates covering:
+
+- Deserialization gadget chains (ClassPathXmlApplicationContext, ROME, commons-collections)
+- RCE vectors (OpenWire, STOMP, AMQP, SpEL injection)
+- XXE vulnerabilities (DTD expansion, SSRF)
+- LDAP injection (authentication bypass)
+- Path traversal attacks
+- DoS attacks (ReDoS, resource exhaustion)
+
+Hypotheses are stored in `hypotheses/` and automatically validated during orchestration.
+
+## Control Library (C-001 to C-012)
+
+Standard hardening controls referenced in reports:
+
+- **C-001:** Shell Execution Wrapper (no raw system/popen)
+- **C-002:** Argument Allowlist + No Shell Parsing
+- **C-003:** Path Canonicalization + Allowlist
+- **C-004:** Zip/Tar Safe Extract (no symlinks, size limits)
+- **C-005:** YAML Safe Loader Only
+- **C-006:** XML External Entities (XXE) Disabled
+- **C-007:** Deserialization Allowlist/Ban
+- **C-008:** SSRF Outbound Allowlist + DNS Pinning
+- **C-009:** Template Rendering Sandboxing
+- **C-010:** Rate Limits + Payload Size Caps
+- **C-011:** Privilege Drop + Sandbox Around Risky Ops
+- **C-012:** Audit Logging on Trust Boundaries
 
 ## Examples
 
-See `examples/` for complete worked-through vulnerabilities:
+Complete examples with actual ActiveMQ analysis:
 
-- `examples/file_upload_rce/` — RCE via shell metacharacters
-- `examples/config_injection/` — Environment variable injection
-- `examples/xxe_vulnerability/` — XML external entity attack
-- `examples/deserialize_gadget_chain/` — Java deserialization RCE
+```bash
+# Run on Apache ActiveMQ
+chiefwiggum orchestrate \
+  --target-url "https://github.com/apache/activemq" \
+  --codebase-path /path/to/activemq \
+  --validate
 
-Each example includes:
-- TARGET.md (what we're testing)
-- SURFACES.yaml (attack surfaces)
-- HYPOTHESIS_*.md (claims)
-- pocs/ (proof-of-concept scripts)
-- evidence/ (results)
-
-## API Reference
-
-### Core Classes
-
-**`Evaluator`** — Main testing harness
-```python
-evaluator = Evaluator(project_path)
-evaluator.add_target(description)
-evaluator.enumerate_surfaces()
-evaluator.test_hypothesis(claim)
-evaluator.record_evidence(confirmed=True, code_location="file.c:123")
-evaluator.generate_report()
+# Output shows:
+# ✓ Found 20 hypotheses
+# ✓ Confirmed 19 vulnerabilities
+# ✓ Generated patches ready: OpenWire RCE, STOMP RCE, AMQP RCE, SpEL injection...
 ```
 
-**`EvidenceLedger`** — Persistent memory of tested hypotheses
-```python
-ledger = EvidenceLedger(project_path)
-ledger.add_confirmed("hyp_001", code_location="js_vm.c:310")
-ledger.add_disproven("hyp_002", reason="Input is validated")
-ledger.has_been_tested("hyp_003")  # Returns True if already tested
+## Testing
+
+```bash
+# Run tests
+pytest tests/
+
+# Run with coverage
+pytest --cov=chiefwiggum tests/
+
+# Run integration tests
+pytest tests/integration/
 ```
-
-**`SurfaceEnumerator`** — Reachability analysis
-```python
-enumerator = SurfaceEnumerator(source_code_path)
-surfaces = enumerator.find_entry_points()
-for surface in surfaces:
-    print(f"{surface.entry} → {surface.sink}")
-```
-
-## Comparison to Other Tools
-
-### vs CodeQL / Semgrep
-- ✓ ChiefWiggum validates findings (not just detection)
-- ✓ ChiefWiggum records negative results (safe surfaces)
-- ✗ ChiefWiggum doesn't find new bugs (requires sanitizer output)
-
-### vs Manual Code Review
-- ✓ Structured format (reusable across team)
-- ✓ Persistent evidence (no re-analysis)
-- ✓ Searchable knowledge base
-- ✗ Takes more time per vulnerability
-
-### vs Unstructured Claude/ChatGPT
-- ✓ 30% clearer output
-- ✓ 30% more complete analysis
-- ✓ 100% reusable (machine-parseable)
-- ✗ Slightly slower per-vulnerability
 
 ## Contributing
 
 Contributions welcome! Please:
 
 1. Fork the repo
-2. Create a feature branch (`git checkout -b feature/my-feature`)
-3. Commit changes (`git commit -m "Add feature"`)
-4. Push to branch (`git push origin feature/my-feature`)
+2. Create a feature branch
+3. Commit changes
+4. Push to branch
 5. Open a Pull Request
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
 
-## Testing
-
-```bash
-# Run unit tests
-pytest tests/
-
-# Run integration tests
-pytest tests/integration/
-
-# Generate coverage report
-pytest --cov=chiefwiggum tests/
-```
-
 ## License
 
-This project is licensed under the MIT License — see [LICENSE](LICENSE) file for details.
+MIT License — see [LICENSE](LICENSE) file for details.
 
 ## Citation
 
-If you use ChiefWiggum Loop in your security research, please cite:
+If you use ChiefWiggum Loop in your security research:
 
 ```bibtex
 @software{chiefwiggum2026,
-  title={ChiefWiggum Loop: Security Vulnerability Testing Methodology},
-  author={Your Name},
+  title={ChiefWiggum: Security Vulnerability Testing Framework},
+  author={mbhatt1},
   year={2026},
-  url={https://github.com/yourusername/chiefwiggum-loop}
+  url={https://github.com/mbhatt1/ChiefWiggum}
 }
 ```
 
 ## References
 
-- **Ralph Loop:** https://openai.com/index/introducing-openai-evals
-- **Go-Explore:** Cell archives for constraint-based search
-- **Threat Modeling:** Shostack, "Threat Modeling"
-- **SEC-bench:** https://huggingface.co/datasets/SEC-bench/SEC-bench
-
-## Authors
-
-- Created as security testing methodology evaluation
-
-## Acknowledgments
-
-- SEC-bench dataset (for evaluation)
-- Ralph methodology (OpenAI)
-- Go-Explore approach (cell archives)
+- **Ralph Loop:** OpenAI evals methodology
+- **SEC-bench:** Vulnerability evaluation dataset
+- **OWASP:** Top 10 vulnerability categories
 
 ## Contact
 
-- Issues: [GitHub Issues](https://github.com/yourusername/chiefwiggum-loop/issues)
-- Discussions: [GitHub Discussions](https://github.com/yourusername/chiefwiggum-loop/discussions)
+- Issues: [GitHub Issues](https://github.com/mbhatt1/ChiefWiggum/issues)
+- Discussions: [GitHub Discussions](https://github.com/mbhatt1/ChiefWiggum/discussions)
 
 ---
 
-**D'oh!** — ChiefWiggum Loop: Because infinite loops are for donuts, not security testing.
+**D'oh!** — ChiefWiggum Loop: Because infinite security testing loops are for donuts, not production code.

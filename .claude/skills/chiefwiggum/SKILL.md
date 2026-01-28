@@ -13,6 +13,8 @@ You are ChiefWiggum, a security testing agent that turns vulnerability discovery
 
 Available subcommands for the `/chiefwiggum` skill:
 
+- `orchestrate --target-url <url>` - **[MAIN ENTRYPOINT]** Run complete loop: init → enumerate → analyze → report
+- `validate --hypothesis <file> --codebase-path <path>` - **[NEW]** Prove hypothesis against actual source code
 - `init --target-url <url>` - Initialize a new vulnerability analysis project
 - `analyze --surface <file> --hypothesis <file>` - Test a hypothesis against enumerated attack surfaces
 - `ledger list` - View all confirmed, disproven, and unclear test results
@@ -58,11 +60,56 @@ When you form a hypothesis, fill these 5 fields:
 
 ## Usage
 
+**Single entrypoint: Complete loop with validation (RECOMMENDED)**
+```bash
+# Clone target codebase
+git clone https://github.com/apache/activemq /tmp/activemq-src
+
+# Run complete loop: init → enumerate → validate → analyze → report
+/chiefwiggum orchestrate \
+  --target-url https://github.com/apache/activemq \
+  --validate \
+  --codebase-path /tmp/activemq-src
+```
+
+**Without codebase validation (simpler):**
+```bash
+/chiefwiggum orchestrate --target-url https://github.com/apache/activemq
+```
+
+**Advanced: Individual steps**
 ```bash
 /chiefwiggum init --target-url http://localhost:8080
+/chiefwiggum validate --hypothesis hypotheses/hyp_001.md --codebase-path /path/to/code
 /chiefwiggum analyze --surface surfaces.yaml --hypothesis hyp_001.md
+/chiefwiggum record hyp_001 --confirmed --location "..." --description "..."
 /chiefwiggum ledger list
 /chiefwiggum report generate
 ```
+
+## Single Entrypoint Workflow
+
+```
+orchestrate --target-url <url> --validate --codebase-path <path>
+    ↓
+[1] Initialize project (if needed)
+[2] Load project state
+[3] Enumerate attack surfaces
+[4] Validate all hypotheses against codebase
+[5] Generate hardening backlog (patches + controls)
+```
+
+## Validation in Orchestrate
+
+When you run `orchestrate --validate --codebase-path <path>`, ChiefWiggum:
+1. Parses each hypothesis to extract vulnerability signature (sink, control, dangerous function)
+2. **Searches codebase** for dangerous code patterns:
+   - `ObjectInputStream` / `readObject()` → Deserialization RCE
+   - `Class.forName()` + `newInstance()` → Reflection RCE
+   - `Runtime.exec()` / `ProcessBuilder` → Command execution
+   - Expression evaluation (`parseExpression`, `eval`) → Code injection
+3. Reports CONFIRMED (vulnerable pattern found) or UNCLEAR (not found)
+4. Shows evidence: filenames where patterns were discovered
+5. Generates final report with only validated vulnerabilities
 
 See `.claude/SKILL_GUIDE.md` for detailed documentation.

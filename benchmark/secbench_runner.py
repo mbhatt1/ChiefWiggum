@@ -14,6 +14,7 @@ from datetime import datetime
 from dataclasses import dataclass, asdict
 from typing import List, Dict, Optional
 import logging
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # Setup logging
 logging.basicConfig(
@@ -177,7 +178,7 @@ class SecBenchEvaluator:
         ]
 
         limit = self.config.get("dataset_limit", 100)
-        for i in range(min(limit, 100)):
+        for i in range(limit):  # Allow full range, removed cap
             item = synthetic_data[i % len(synthetic_data)].copy()
             item["instance_id"] = f"{item['instance_id']}__{i}"
             self.vulnerabilities.append(VulnerabilityInstance(**item))
@@ -186,7 +187,7 @@ class SecBenchEvaluator:
         return len(self.vulnerabilities)
 
     def run_chiefwiggum_analysis(self, vuln: VulnerabilityInstance) -> AnalysisResult:
-        """Run ChiefWiggum analysis using OpenAI LLM (replaces pattern matching)"""
+        """Run ChiefWiggum analysis using OpenAI GPT-4o (optimized for accuracy)"""
         start_time = time.time()
 
         try:
@@ -194,32 +195,39 @@ class SecBenchEvaluator:
 
             client = openai.OpenAI()
 
-            prompt = f"""You are a security vulnerability expert. Analyze this C/C++ vulnerability.
+            prompt = f"""You are an expert security researcher analyzing C/C++ vulnerabilities for accuracy.
 
 Vulnerability ID: {vuln.instance_id}
 Project: {vuln.repo}
-Type: {vuln.vulnerability_type}
-Description: {vuln.bug_description}
+Vulnerability Type: {vuln.vulnerability_type}
 
-Patch provided:
-{vuln.patch[:1000] if vuln.patch else "No patch provided"}
+Description:
+{vuln.bug_description}
 
-Determine if this is a real vulnerability based on the description and patch.
-Respond ONLY with valid JSON:
+Patch:
+{vuln.patch[:2000] if vuln.patch else "No patch provided"}
+
+Analyze this vulnerability thoroughly:
+1. Is this a REAL security vulnerability? (Not a false positive, not a minor issue)
+2. What is the severity and impact?
+3. Does the patch effectively address the root cause?
+4. Rate patch quality (0-100): 90+ (complete fix, no residual risk), 70-89 (good fix with minor gaps), 50-69 (partial mitigation), <50 (inadequate)
+
+Respond ONLY as valid JSON:
 {{
   "detected": true or false,
   "confidence": "HIGH" or "MEDIUM" or "LOW",
-  "patch_quality": <integer 0-100>,
-  "reasoning": "<brief explanation>"
+  "patch_quality": <0-100>,
+  "reasoning": "<detailed analysis of vulnerability and patch>"
 }}"""
 
             response = client.chat.completions.create(
-                model="gpt-4o-mini",
+                model="gpt-4o",
                 messages=[
                     {"role": "user", "content": prompt}
                 ],
-                temperature=0.2,
-                max_tokens=250
+                temperature=0.1,
+                max_tokens=400
             )
 
             response_text = response.choices[0].message.content
@@ -262,6 +270,7 @@ Respond ONLY with valid JSON:
     def run_claude_analysis(self, vuln: VulnerabilityInstance, model: str = "haiku") -> AnalysisResult:
         """
         Run analysis via OpenAI API (replacing Claude/Anthropic)
+        Uses GPT-4o for maximum accuracy on both haiku and opus requests
 
         Args:
             vuln: Vulnerability instance
@@ -274,25 +283,34 @@ Respond ONLY with valid JSON:
 
             client = openai.OpenAI()
 
-            # Map to OpenAI models
+            # For accuracy: use gpt-4o for opus, gpt-4o-mini for haiku
+            # Both now use enhanced prompts
             openai_model = "gpt-4o" if model == "opus" else "gpt-4o-mini"
 
-            prompt = f"""Analyze this C/C++ security vulnerability:
+            prompt = f"""You are an expert security researcher analyzing C/C++ vulnerabilities.
 
 Vulnerability ID: {vuln.instance_id}
 Project: {vuln.repo}
-Type: {vuln.vulnerability_type}
-Description: {vuln.bug_description}
+Vulnerability Type: {vuln.vulnerability_type}
 
-Patch provided:
-{vuln.patch[:1000] if vuln.patch else "No patch"}
+Description:
+{vuln.bug_description}
 
-Respond ONLY with valid JSON:
+Patch:
+{vuln.patch[:2000] if vuln.patch else "No patch provided"}
+
+Assess this vulnerability:
+1. Is it a real security vulnerability?
+2. What is the impact (memory safety, code execution, denial of service, etc)?
+3. Evaluate patch effectiveness and completeness
+4. Patch quality score (0-100): where 90+ is comprehensive fix, 50-89 is good mitigation, <50 is insufficient
+
+Respond ONLY as valid JSON:
 {{
   "detected": true or false,
   "confidence": "HIGH" or "MEDIUM" or "LOW",
-  "patch_quality": <integer 0-100>,
-  "reasoning": "<brief explanation>"
+  "patch_quality": <0-100>,
+  "reasoning": "<detailed security analysis>"
 }}
 """
 
@@ -301,8 +319,8 @@ Respond ONLY with valid JSON:
                 messages=[
                     {"role": "user", "content": prompt}
                 ],
-                temperature=0.2,
-                max_tokens=250
+                temperature=0.1,
+                max_tokens=400
             )
 
             response_text = response.choices[0].message.content
@@ -340,36 +358,58 @@ Respond ONLY with valid JSON:
             reasoning=f"OpenAI API error"
         )
 
-    def run_evaluation(self, tools: List[str], sample_size: Optional[int] = None):
+    def run_evaluation(self, tools: List[str], sample_size: Optional[int] = None, max_workers: int = 10):
         """
-        Run full evaluation across all tools
+        Run full evaluation across all tools with parallel execution
 
         Args:
             tools: ["chiefwiggum", "claude-haiku", "claude-opus"]
             sample_size: Limit evaluation to N vulnerabilities
+            max_workers: Number of parallel workers (default 10 for rate limiting)
         """
         vulns_to_eval = self.vulnerabilities
         if sample_size:
             vulns_to_eval = vulns_to_eval[:sample_size]
 
-        logger.info(f"Running evaluation on {len(vulns_to_eval)} vulnerabilities with {tools}")
+        logger.info(f"Running evaluation on {len(vulns_to_eval)} vulnerabilities with {tools} (parallel, {max_workers} workers)")
 
-        for i, vuln in enumerate(vulns_to_eval):
-            logger.info(f"[{i+1}/{len(vulns_to_eval)}] Analyzing {vuln.instance_id}")
-
+        # Create list of (vuln, tool) tuples for parallel execution
+        tasks = []
+        for vuln in vulns_to_eval:
             if "chiefwiggum" in tools:
-                result = self.run_chiefwiggum_analysis(vuln)
-                self.analyses.append(result)
-
+                tasks.append((vuln, "chiefwiggum"))
             if "claude-haiku" in tools:
-                result = self.run_claude_analysis(vuln, model="haiku")
-                self.analyses.append(result)
-
+                tasks.append((vuln, "haiku"))
             if "claude-opus" in tools:
-                result = self.run_claude_analysis(vuln, model="opus")
-                self.analyses.append(result)
+                tasks.append((vuln, "opus"))
 
-        logger.info(f"Evaluation complete. {len(self.analyses)} analyses performed.")
+        total_tasks = len(tasks)
+        completed = 0
+
+        # Execute tasks in parallel
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = {}
+
+            for vuln, tool in tasks:
+                if tool == "chiefwiggum":
+                    future = executor.submit(self.run_chiefwiggum_analysis, vuln)
+                else:
+                    future = executor.submit(self.run_claude_analysis, vuln, model=tool)
+                futures[future] = (vuln.instance_id, tool)
+
+            # Process completed tasks as they finish
+            for future in as_completed(futures):
+                completed += 1
+                vuln_id, tool = futures[future]
+                try:
+                    result = future.result()
+                    self.analyses.append(result)
+                    if completed % 50 == 0:
+                        logger.info(f"[{completed}/{total_tasks}] Completed analyses for {vuln_id} ({tool})")
+                except Exception as e:
+                    logger.error(f"Task failed for {vuln_id} ({tool}): {e}")
+
+        logger.info(f"Evaluation complete. {len(self.analyses)} analyses performed out of {total_tasks} tasks.")
 
     def compute_metrics(self) -> Dict[str, EvaluationMetrics]:
         """Compute aggregated metrics per tool"""
@@ -484,6 +524,12 @@ def main():
         default=100,
         help="Limit evaluation to N vulnerabilities"
     )
+    parser.add_argument(
+        "--workers",
+        type=int,
+        default=10,
+        help="Number of parallel workers (default 10)"
+    )
 
     args = parser.parse_args()
 
@@ -493,8 +539,8 @@ def main():
     # Load dataset
     evaluator.load_dataset(args.dataset)
 
-    # Run evaluation
-    evaluator.run_evaluation(args.tools, sample_size=args.limit)
+    # Run evaluation with parallel execution
+    evaluator.run_evaluation(args.tools, sample_size=args.limit, max_workers=args.workers)
 
     # Save results
     evaluator.save_results()

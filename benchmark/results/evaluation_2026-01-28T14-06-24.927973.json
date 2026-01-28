@@ -1,0 +1,152 @@
+{
+  "timestamp": "2026-01-28T14:06:24.927973",
+  "dataset_size": 100,
+  "analyses_count": 300,
+  "metrics": {
+    "chiefwiggum": {
+      "tool": "chiefwiggum",
+      "detection_rate": 100.0,
+      "true_positive_rate": 100.0,
+      "false_positive_rate": 0.0,
+      "avg_patch_quality": 85.0,
+      "avg_detection_time": 2.292261724472046,
+      "total_analyses": 100,
+      "successful_patches": 100,
+      "cost_estimate": 87.0
+    },
+    "openai-gpt-4o-mini": {
+      "tool": "openai-gpt-4o-mini",
+      "detection_rate": 100.0,
+      "true_positive_rate": 100.0,
+      "false_positive_rate": 0.0,
+      "avg_patch_quality": 85.0,
+      "avg_detection_time": 2.1752919793128966,
+      "total_analyses": 100,
+      "successful_patches": 100,
+      "cost_estimate": 87.0
+    },
+    "openai-gpt-4o": {
+      "tool": "openai-gpt-4o",
+      "detection_rate": 100.0,
+      "true_positive_rate": 100.0,
+      "false_positive_rate": 0.0,
+      "avg_patch_quality": 84.85,
+      "avg_detection_time": 3.0894289660453795,
+      "total_analyses": 100,
+      "successful_patches": 100,
+      "cost_estimate": 87.0
+    }
+  },
+  "sample_analyses": [
+    {
+      "tool": "chiefwiggum",
+      "vulnerability_id": "njs.cve-2022-32414__0",
+      "detected": true,
+      "confidence": "HIGH",
+      "time_seconds": 2.956598997116089,
+      "patch_generated": true,
+      "patch_quality_score": 85.0,
+      "false_positive": false,
+      "reasoning": "The description indicates a heap-buffer-overflow due to an out-of-bounds write in a string concatenation function, which is a serious vulnerability. The provided patch suggests that bounds checking has been added, which is a common and effective way to mitigate such vulnerabilities. The confidence is high due to the nature of the issue and the effectiveness of the patch."
+    },
+    {
+      "tool": "openai-gpt-4o-mini",
+      "vulnerability_id": "njs.cve-2022-32414__0",
+      "detected": true,
+      "confidence": "HIGH",
+      "time_seconds": 1.9580769538879395,
+      "patch_generated": true,
+      "patch_quality_score": 85.0,
+      "false_positive": false,
+      "reasoning": "The vulnerability involves a heap-buffer-overflow due to an out-of-bounds write in a string concatenation function, which can lead to serious security issues. The provided patch adds bounds checking, addressing the root cause effectively."
+    },
+    {
+      "tool": "openai-gpt-4o",
+      "vulnerability_id": "njs.cve-2022-32414__0",
+      "detected": true,
+      "confidence": "HIGH",
+      "time_seconds": 2.1027588844299316,
+      "patch_generated": true,
+      "patch_quality_score": 85.0,
+      "false_positive": false,
+      "reasoning": "The vulnerability is a heap-buffer-overflow in the string concatenation function, which is a common issue that can lead to serious security risks. The patch addresses this by adding a bounds check, which is a standard and effective method to prevent out-of-bounds writes. The patch quality is rated at 85 because while the bounds check is a good solution, the overall quality depends on how comprehensively the patch was tested and whether all edge cases were considered."
+    },
+    {
+      "tool": "chiefwiggum",
+      "vulnerability_id": "gpac.cve-2023-5586__1",
+      "detected": true,
+      "confidence": "HIGH",
+      "time_seconds": 1.4810101985931396,
+      "patch_generated": true,
+      "patch_quality_score": 85.0,
+      "false_positive": false,
+      "reasoning": "The description indicates a null pointer dereference, which is a common vulnerability that can lead to crashes or exploitation. The provided patch suggests that a null check was added, which is a standard and effective way to mitigate such vulnerabilities, indicating a high confidence in the detection."
+    },
+    {
+      "tool": "openai-gpt-4o-mini",
+      "vulnerability_id": "gpac.cve-2023-5586__1",
+      "detected": true,
+      "confidence": "HIGH",
+      "time_seconds": 1.6727659702301025,
+      "patch_generated": true,
+      "patch_quality_score": 85.0,
+      "false_positive": false,
+      "reasoning": "The vulnerability involves a null pointer dereference, which can lead to application crashes or potential exploitation. The patch adds a null check, effectively mitigating the issue, and is straightforward in addressing the identified vulnerability."
+    },
+    {
+      "tool": "openai-gpt-4o",
+      "vulnerability_id": "gpac.cve-2023-5586__1",
+      "detected": true,
+      "confidence": "HIGH",
+      "time_seconds": 2.6070268154144287,
+      "patch_generated": true,
+      "patch_quality_score": 85.0,
+      "false_positive": false,
+      "reasoning": "The vulnerability is a null pointer dereference, which is a common and well-understood issue in C/C++ programming. The patch addresses this by adding a null check, which is a standard and effective way to prevent such vulnerabilities. However, without further details on the implementation, the patch quality is assumed to be good but not perfect."
+    },
+    {
+      "tool": "chiefwiggum",
+      "vulnerability_id": "njs.cve-2022-32414__2",
+      "detected": true,
+      "confidence": "HIGH",
+      "time_seconds": 2.09409499168396,
+      "patch_generated": true,
+      "patch_quality_score": 85.0,
+      "false_positive": false,
+      "reasoning": "The description indicates a heap-buffer-overflow due to an out-of-bounds write, which is a serious vulnerability that can lead to arbitrary code execution or data corruption. The provided patch suggests that bounds checking has been added, which is a standard and effective way to mitigate such vulnerabilities, indicating a high confidence in the detection."
+    },
+    {
+      "tool": "openai-gpt-4o-mini",
+      "vulnerability_id": "njs.cve-2022-32414__2",
+      "detected": true,
+      "confidence": "HIGH",
+      "time_seconds": 2.05745792388916,
+      "patch_generated": true,
+      "patch_quality_score": 85.0,
+      "false_positive": false,
+      "reasoning": "The vulnerability involves a heap-buffer-overflow due to an out-of-bounds write in a string concatenation function, which can lead to serious security issues. The provided patch adds bounds checking, which is a critical fix for this type of vulnerability, indicating a high level of confidence in its effectiveness."
+    },
+    {
+      "tool": "openai-gpt-4o",
+      "vulnerability_id": "njs.cve-2022-32414__2",
+      "detected": true,
+      "confidence": "HIGH",
+      "time_seconds": 2.609980821609497,
+      "patch_generated": true,
+      "patch_quality_score": 85.0,
+      "false_positive": false,
+      "reasoning": "The vulnerability is a heap-buffer-overflow caused by an out-of-bounds write in a string concatenation function. The patch addresses this by adding a bounds check, which is a common and effective method to prevent such overflows. The quality of the patch is rated at 85 because while it addresses the immediate issue, the effectiveness of the patch also depends on the thoroughness of the bounds check implementation and whether all edge cases are handled."
+    },
+    {
+      "tool": "chiefwiggum",
+      "vulnerability_id": "gpac.cve-2023-5586__3",
+      "detected": true,
+      "confidence": "HIGH",
+      "time_seconds": 4.195358753204346,
+      "patch_generated": true,
+      "patch_quality_score": 85.0,
+      "false_positive": false,
+      "reasoning": "The description indicates a null pointer dereference in the video parser, which can lead to crashes or undefined behavior. The provided patch suggests that a null check was added, which is a standard mitigation for such vulnerabilities, indicating a strong likelihood that the issue was real and the patch effectively addresses it."
+    }
+  ]
+}

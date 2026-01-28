@@ -1,0 +1,174 @@
+{
+  "timestamp": "2026-01-28T14:19:03.374290",
+  "dataset_size": 600,
+  "analyses_count": 1800,
+  "metrics": {
+    "openai-opus": {
+      "tool": "openai-opus",
+      "detection_rate": 0.0,
+      "true_positive_rate": 0,
+      "false_positive_rate": 0,
+      "avg_patch_quality": 0.0,
+      "avg_detection_time": 1.5065920140551425,
+      "total_analyses": 348,
+      "successful_patches": 0,
+      "cost_estimate": 302.76
+    },
+    "openai-haiku": {
+      "tool": "openai-haiku",
+      "detection_rate": 0.0,
+      "true_positive_rate": 0,
+      "false_positive_rate": 0,
+      "avg_patch_quality": 0.0,
+      "avg_detection_time": 1.5137420325537352,
+      "total_analyses": 351,
+      "successful_patches": 0,
+      "cost_estimate": 305.37
+    },
+    "chiefwiggum": {
+      "tool": "chiefwiggum",
+      "detection_rate": 41.66666666666667,
+      "true_positive_rate": 100.0,
+      "false_positive_rate": 0.0,
+      "avg_patch_quality": 86.5,
+      "avg_detection_time": 2.7823800178368887,
+      "total_analyses": 600,
+      "successful_patches": 250,
+      "cost_estimate": 522.0
+    },
+    "openai-gpt-4o": {
+      "tool": "openai-gpt-4o",
+      "detection_rate": 100.0,
+      "true_positive_rate": 100.0,
+      "false_positive_rate": 0.0,
+      "avg_patch_quality": 84.04761904761905,
+      "avg_detection_time": 5.070545867321983,
+      "total_analyses": 252,
+      "successful_patches": 252,
+      "cost_estimate": 219.24
+    },
+    "openai-gpt-4o-mini": {
+      "tool": "openai-gpt-4o-mini",
+      "detection_rate": 100.0,
+      "true_positive_rate": 100.0,
+      "false_positive_rate": 0.0,
+      "avg_patch_quality": 85.0,
+      "avg_detection_time": 4.234829139517972,
+      "total_analyses": 249,
+      "successful_patches": 249,
+      "cost_estimate": 216.63
+    }
+  },
+  "sample_analyses": [
+    {
+      "tool": "openai-opus",
+      "vulnerability_id": "njs.cve-2022-32414__4",
+      "detected": false,
+      "confidence": "LOW",
+      "time_seconds": 2.2428982257843018,
+      "patch_generated": false,
+      "patch_quality_score": 0.0,
+      "false_positive": false,
+      "reasoning": "OpenAI API error"
+    },
+    {
+      "tool": "openai-haiku",
+      "vulnerability_id": "njs.cve-2022-32414__2",
+      "detected": false,
+      "confidence": "LOW",
+      "time_seconds": 2.257077932357788,
+      "patch_generated": false,
+      "patch_quality_score": 0.0,
+      "false_positive": false,
+      "reasoning": "OpenAI API error"
+    },
+    {
+      "tool": "openai-opus",
+      "vulnerability_id": "gpac.cve-2023-5586__5",
+      "detected": false,
+      "confidence": "LOW",
+      "time_seconds": 2.2612318992614746,
+      "patch_generated": false,
+      "patch_quality_score": 0.0,
+      "false_positive": false,
+      "reasoning": "OpenAI API error"
+    },
+    {
+      "tool": "openai-opus",
+      "vulnerability_id": "njs.cve-2022-32414__2",
+      "detected": false,
+      "confidence": "LOW",
+      "time_seconds": 2.2827870845794678,
+      "patch_generated": false,
+      "patch_quality_score": 0.0,
+      "false_positive": false,
+      "reasoning": "OpenAI API error"
+    },
+    {
+      "tool": "openai-opus",
+      "vulnerability_id": "gpac.cve-2023-5586__1",
+      "detected": false,
+      "confidence": "LOW",
+      "time_seconds": 2.3040738105773926,
+      "patch_generated": false,
+      "patch_quality_score": 0.0,
+      "false_positive": false,
+      "reasoning": "OpenAI API error"
+    },
+    {
+      "tool": "chiefwiggum",
+      "vulnerability_id": "njs.cve-2022-32414__6",
+      "detected": false,
+      "confidence": "LOW",
+      "time_seconds": 2.3060569763183594,
+      "patch_generated": false,
+      "patch_quality_score": 0.0,
+      "false_positive": false,
+      "reasoning": "OpenAI error: Connection error."
+    },
+    {
+      "tool": "openai-haiku",
+      "vulnerability_id": "gpac.cve-2023-5586__1",
+      "detected": false,
+      "confidence": "LOW",
+      "time_seconds": 2.317534923553467,
+      "patch_generated": false,
+      "patch_quality_score": 0.0,
+      "false_positive": false,
+      "reasoning": "OpenAI API error"
+    },
+    {
+      "tool": "chiefwiggum",
+      "vulnerability_id": "gpac.cve-2023-5586__5",
+      "detected": false,
+      "confidence": "LOW",
+      "time_seconds": 2.3135762214660645,
+      "patch_generated": false,
+      "patch_quality_score": 0.0,
+      "false_positive": false,
+      "reasoning": "OpenAI error: Connection error."
+    },
+    {
+      "tool": "openai-haiku",
+      "vulnerability_id": "njs.cve-2022-32414__4",
+      "detected": false,
+      "confidence": "LOW",
+      "time_seconds": 2.4035909175872803,
+      "patch_generated": false,
+      "patch_quality_score": 0.0,
+      "false_positive": false,
+      "reasoning": "OpenAI API error"
+    },
+    {
+      "tool": "openai-haiku",
+      "vulnerability_id": "gpac.cve-2023-5586__5",
+      "detected": false,
+      "confidence": "LOW",
+      "time_seconds": 2.4413411617279053,
+      "patch_generated": false,
+      "patch_quality_score": 0.0,
+      "false_positive": false,
+      "reasoning": "OpenAI API error"
+    }
+  ]
+}

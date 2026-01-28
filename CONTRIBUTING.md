@@ -10,8 +10,8 @@ Be respectful, inclusive, and professional in all interactions.
 
 1. **Fork the repo**
    ```bash
-   git clone https://github.com/yourusername/chiefwiggum-loop
-   cd chiefwiggum-loop
+   git clone https://github.com/mbhatt1/ChiefWiggum
+   cd ChiefWiggum
    ```
 
 2. **Install development dependencies**

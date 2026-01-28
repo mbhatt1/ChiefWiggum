@@ -4,12 +4,14 @@ ChiefWiggum Loop command-line interface
 
 import click
 import json
+import sys
+import os
 from pathlib import Path
-from tabulate import tabulate
 from urllib.parse import urlparse
 
 from .project import create_project, load_project, get_project_info, init_in_place, init_from_url
-from .core import Evaluator, EvidenceType, ActionType
+from .core import Evaluator, EvidenceType
+from .hypothesis_generator import generate_hypotheses as gen_hypotheses
 
 
 @click.group()
@@ -140,11 +142,11 @@ def record(hypothesis_id, confirmed, disproven, location, description, action,
 
         # Determine evidence type
         if confirmed:
-            evidence_type = EvidenceType.CONFIRMED
+            evidence_type = "confirmed"
         elif disproven:
-            evidence_type = EvidenceType.DISPROVEN
+            evidence_type = "disproven"
         else:
-            evidence_type = EvidenceType.UNCLEAR
+            evidence_type = "unclear"
 
         # Validate required fields based on action
         if action == "PATCH" and not patch_location:
@@ -155,13 +157,12 @@ def record(hypothesis_id, confirmed, disproven, location, description, action,
             return
 
         # Record evidence with full action info
-        from .core import ActionType
         evaluator.ledger.add_evidence(
             hypothesis_id=hypothesis_id,
             evidence_type=evidence_type,
             code_location=location,
             description=description,
-            action=ActionType[action],
+            action=action,
             control_id=control,
             patch_location=patch_location,
             test_case=test_case,
@@ -219,7 +220,6 @@ def validate(hypothesis, codebase_path, path):
     """Validate hypothesis against actual source code"""
     try:
         import re
-        from pathlib import Path
 
         project_root = load_project(path)
         evaluator = Evaluator(project_root)
@@ -298,7 +298,6 @@ def validate(hypothesis, codebase_path, path):
                 click.echo()
 
             status = "CONFIRMED"
-            result = True
         else:
             click.echo(f"⚠ UNCLEAR - Code pattern not found in search\n")
             click.echo(f"  Searched for: {sink}")
@@ -307,7 +306,6 @@ def validate(hypothesis, codebase_path, path):
             click.echo()
 
             status = "UNCLEAR"
-            result = None
 
         click.echo(f"{'='*80}")
         click.echo(f"Status: {status}")
@@ -323,11 +321,10 @@ def validate(hypothesis, codebase_path, path):
 @click.option("--path", default=".", help="Project root directory")
 @click.option("--validate/--no-validate", default=False, help="Validate hypotheses against codebase")
 @click.option("--codebase-path", default=None, help="Path to target codebase for validation")
-def orchestrate(target_url, path, validate, codebase_path):
+@click.option("--generate-hypotheses", "num_hypotheses", type=int, default=100, help="Auto-generate N vulnerability hypotheses (default: 100)")
+def orchestrate(target_url, path, validate, codebase_path, num_hypotheses):
     """Run end-to-end vulnerability testing loop: init → enumerate → analyze → record → report"""
     try:
-        from pathlib import Path
-
         project_path = Path(path)
 
         click.echo("=" * 80)
@@ -351,8 +348,14 @@ def orchestrate(target_url, path, validate, codebase_path):
         evaluator = Evaluator(project_root_str)
         click.echo(f"  ✓ Loaded from {project_root_str}")
 
+        # Phase 2b: Generate hypotheses if needed
+        if num_hypotheses > 0:
+            click.echo("\n[2b/5] Generate vulnerability hypotheses...")
+            generated = gen_hypotheses(project_root_str, count=num_hypotheses)
+            click.echo(f"  ✓ Generated/loaded {generated} hypotheses")
+
         # Phase 3: Enumerate and analyze surfaces
-        click.echo("\n[3/5] Enumerate attack surfaces...")
+        click.echo("\n[3/6] Enumerate attack surfaces...")
         surfaces_file = str(Path(project_root_str) / "surfaces" / "SURFACES.yaml")
         if Path(surfaces_file).exists():
             click.echo(f"  ✓ Found surfaces file")
@@ -360,35 +363,7 @@ def orchestrate(target_url, path, validate, codebase_path):
             click.echo(f"  ⚠ No surfaces file")
 
         # Phase 4: Validate hypotheses against codebase
-        click.echo("\n[4/5] Validate hypotheses...")
-
-        # NEW: Run attack chain detection first (catches complex multi-stage attacks)
-        if validate and codebase_path:
-            codebase = Path(codebase_path)
-            if codebase.exists():
-                from .detectors import detect_attack_chains
-
-                click.echo(f"  Scanning for multi-stage attack chains...")
-                chain_findings = detect_attack_chains(codebase)
-
-                if chain_findings:
-                    click.echo(f"  ✓ Found {len(chain_findings)} attack chain(s)")
-                    for finding in chain_findings:
-                        click.echo(f"    ✓ {finding['id']}: {finding['title']}")
-                        click.echo(f"      Severity: {finding['severity']}")
-                        click.echo(f"      Location: {finding['file']}")
-
-                        # Record in evidence ledger
-                        evaluator.ledger.add_evidence(
-                            hypothesis_id=finding['id'],
-                            evidence_type=EvidenceType.CONFIRMED,
-                            code_location=finding['file'],
-                            description=finding['title'],
-                            details=finding,
-                            action=ActionType.PATCH,
-                            patch_location=finding['file']
-                        )
-
+        click.echo("\n[4/6] Validate hypotheses...")
         hypotheses_dir = str(Path(project_root_str) / "hypotheses")
         hypothesis_files = [f for f in Path(hypotheses_dir).glob("hyp_*.md")]
 
@@ -406,53 +381,93 @@ def orchestrate(target_url, path, validate, codebase_path):
                     import re
                     validated_count = 0
 
+                    # Pre-load all Java files to search once
+                    click.echo(f"  Loading codebase...")
+                    java_files_content = {}
+                    total_files = 0
+                    for java_file in codebase.rglob("*.java"):
+                        try:
+                            java_files_content[str(java_file)] = java_file.read_text()
+                            total_files += 1
+                        except:
+                            continue
+                    click.echo(f"  Loaded {total_files} Java files")
+
+                    # Simple pattern search - find ALL dangerous code patterns
+                    # Only include patterns found in ActiveMQ (verified by grep)
+                    dangerous_patterns = [
+                        ("ObjectInputStream", "ObjectInputStream"),
+                        ("readObject", "readObject"),
+                        ("Class.forName", "Class.forName"),
+                        ("getConstructor", "getConstructor"),
+                        ("newInstance", "newInstance"),
+                        ("DocumentBuilderFactory", "DocumentBuilderFactory"),
+                        ("InitialContext", "InitialContext"),
+                        ("executeQuery", "executeQuery"),
+                        ("executeUpdate", "executeUpdate"),
+                        ("SAXParserFactory", "SAXParserFactory"),
+                    ]
+
+                    # Find all dangerous code in codebase
+                    code_findings = {}
+                    for pattern_name, pattern_text in dangerous_patterns:
+                        code_findings[pattern_name] = []
+                        for file_path, content in java_files_content.items():
+                            if pattern_text in content:
+                                filename = Path(file_path).name
+                                code_findings[pattern_name].append(filename)
+
+
+                    confirmed_count = 0
                     for hyp_file in hypothesis_files:
                         hyp_id = hyp_file.stem
                         hyp_content = hyp_file.read_text()
 
-                        # Extract location and sink from hypothesis
-                        location_match = re.search(r'\*\*Location:\*\*\s*`([^`]+)`', hyp_content)
-                        sink_match = re.search(r'\*\*Function:\*\*\s*`([^`]+)`', hyp_content)
+                        # Extract sink and control from hypothesis
+                        sink_match = re.search(r'- Sink:\s*`?([^`\n]+)`?', hyp_content)
+                        control_match = re.search(r'- Control:\s*\*\*(C-\d+)', hyp_content)
+                        sink = sink_match.group(1).lower() if sink_match else ""
+                        control = control_match.group(1) if control_match else "UNKNOWN"
 
-                        location = location_match.group(1) if location_match else "unknown"
-                        sink = sink_match.group(1) if sink_match else "unknown"
-
-                        # Search for dangerous patterns
                         found = False
                         evidence_list = []
 
-                        for java_file in codebase.rglob("*.java"):
-                            try:
-                                content = java_file.read_text()
-                            except:
-                                continue
-
-                            # Check for dangerous patterns based on sink
-                            if any(pattern in content for pattern in ["ObjectInputStream", "readObject"]) and "deserial" in sink.lower():
+                        # Check if any dangerous pattern matches this hypothesis
+                        for pattern_name, files_found in code_findings.items():
+                            pattern_name_lower = pattern_name.lower()
+                            if files_found and pattern_name_lower in sink:
                                 found = True
-                                evidence_list.append(f"{java_file.name} (ObjectInputStream)")
-                            elif "Class.forName" in content and any(p in content for p in ["newInstance", "getConstructor"]):
-                                if "forName" in sink or "ClassLoader" in sink:
-                                    found = True
-                                    evidence_list.append(f"{java_file.name} (Class.forName)")
-                            elif any(p in content for p in ["Runtime.getRuntime()", "ProcessBuilder"]) and ("exec" in sink or "Runtime" in sink):
-                                found = True
-                                evidence_list.append(f"{java_file.name} (Runtime/ProcessBuilder)")
-                            elif any(p in content for p in ["parseExpression", "evaluate", "eval"]) and "expression" in hyp_id.lower():
-                                found = True
-                                evidence_list.append(f"{java_file.name} (Expression evaluation)")
+                                for filename in files_found[:2]:
+                                    evidence_list.append(f"{filename}:{pattern_name}")
 
-                        status = "CONFIRMED" if found else "UNCLEAR"
-                        symbol = "✓" if found else "⚠"
-                        click.echo(f"    {symbol} {hyp_id}: {status}", err=True if not found else False)
+                        # Pattern found = potential vulnerability (INSTRUMENT to investigate)
+                        # Not confirmed until reachability proven
+                        status = "UNCLEAR"
+                        symbol = "⚠"
 
-                        if evidence_list:
-                            for evidence in evidence_list[:2]:  # Show first 2 matches
+                        if found:
+                            click.echo(f"    {symbol} {hyp_id}: {status} - dangerous pattern found, needs manual validation", err=False)
+                            for evidence in evidence_list[:2]:
                                 click.echo(f"       → {evidence}")
+
+                            # Record as UNCLEAR with instrumentation needed
+                            evidence_text = "; ".join(evidence_list[:2]) if evidence_list else "Found in codebase"
+                            evaluator.ledger.add_evidence(
+                                hypothesis_id=hyp_id,
+                                evidence_type="unclear",
+                                code_location=evidence_text,
+                                description=f"Dangerous pattern detected in code - requires manual code review to verify REACHABILITY of untrusted input",
+                                action="INSTRUMENT",
+                                control_id=control,
+                                instrumentation=f"Perform data flow analysis: trace untrusted input → {evidence_list[0] if evidence_list else 'sink'} to prove exploitability"
+                            )
+                        else:
+                            click.echo(f"    {symbol} {hyp_id}: {status}")
 
                         validated_count += 1
 
                     click.echo(f"  ✓ Validated {validated_count} hypotheses")
+                    click.echo(f"  ✓ Found {confirmed_count} confirmed vulnerabilities")
             else:
                 click.echo(f"  To validate, run with:")
                 click.echo(f"    --validate --codebase-path /path/to/activemq")
@@ -464,7 +479,7 @@ def orchestrate(target_url, path, validate, codebase_path):
             click.echo("  ⚠ No hypotheses found")
 
         # Phase 5: Generate report
-        click.echo("\n[5/5] Generate hardening backlog...")
+        click.echo("\n[5/6] Generate hardening backlog...")
         report_output = evaluator.control_map_report()
         click.echo(report_output)
 
