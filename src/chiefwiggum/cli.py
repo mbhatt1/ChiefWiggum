@@ -359,109 +359,62 @@ def orchestrate(target_url, path, validate, codebase_path):
         else:
             click.echo(f"  ⚠ No surfaces file")
 
-        # Phase 4: Validate hypotheses against codebase
-        click.echo("\n[4/5] Validate hypotheses...")
+        # Phase 4: Vulnerability Analysis (LLM-based)
+        click.echo("\n[4/5] Analyze code for vulnerabilities...")
 
-        # NEW: Run attack chain detection first (catches complex multi-stage attacks)
         if validate and codebase_path:
             codebase = Path(codebase_path)
             if codebase.exists():
-                from .detectors import detect_attack_chains
+                from .llm_analyzer import analyze_with_gpt
 
-                click.echo(f"  Scanning for multi-stage attack chains...")
-                chain_findings = detect_attack_chains(codebase)
+                click.echo(f"  Running GPT-based vulnerability analysis...")
+                click.echo(f"  (Analyzing first 50 Java files)")
 
-                if chain_findings:
-                    click.echo(f"  ✓ Found {len(chain_findings)} attack chain(s)")
-                    for finding in chain_findings:
-                        click.echo(f"    ✓ {finding['id']}: {finding['title']}")
-                        click.echo(f"      Severity: {finding['severity']}")
-                        click.echo(f"      Location: {finding['file']}")
+                gpt_findings = analyze_with_gpt(codebase, file_patterns=["*.java"])
 
-                        # Record in evidence ledger
+                if gpt_findings:
+                    click.echo(f"\n  ✓ Found {len(gpt_findings)} vulnerabilities")
+
+                    # Group by severity
+                    critical = [f for f in gpt_findings if f.get('severity') == 'CRITICAL']
+                    high = [f for f in gpt_findings if f.get('severity') == 'HIGH']
+                    medium = [f for f in gpt_findings if f.get('severity') == 'MEDIUM']
+                    low = [f for f in gpt_findings if f.get('severity') == 'LOW']
+
+                    if critical:
+                        click.echo(f"\n  🔴 CRITICAL ({len(critical)}):")
+                        for finding in critical[:5]:
+                            click.echo(f"    • {finding['type']} - {finding.get('location', 'unknown')}")
+
+                    if high:
+                        click.echo(f"\n  🟠 HIGH ({len(high)}):")
+                        for finding in high[:5]:
+                            click.echo(f"    • {finding['type']} - {finding.get('location', 'unknown')}")
+
+                    if medium:
+                        click.echo(f"\n  🟡 MEDIUM ({len(medium)}):")
+                        for finding in medium[:3]:
+                            click.echo(f"    • {finding['type']}")
+
+                    # Record in evidence ledger
+                    for finding in gpt_findings:
                         evaluator.ledger.add_evidence(
                             hypothesis_id=finding['id'],
                             evidence_type=EvidenceType.CONFIRMED,
                             code_location=finding['file'],
-                            description=finding['title'],
+                            description=f"{finding['type']} ({finding.get('severity', 'UNKNOWN')})",
                             details=finding,
                             action=ActionType.PATCH,
-                            patch_location=finding['file']
+                            patch_location=finding['file'],
+                            test_case=f"Verify {finding['type']} is fixed"
                         )
-
-        hypotheses_dir = str(Path(project_root_str) / "hypotheses")
-        hypothesis_files = [f for f in Path(hypotheses_dir).glob("hyp_*.md")]
-
-        if hypothesis_files:
-            click.echo(f"  Found {len(hypothesis_files)} hypothesis(es)")
-
-            if validate and codebase_path:
-                codebase = Path(codebase_path)
-                if not codebase.exists():
-                    click.echo(f"  ⚠ Codebase path not found: {codebase_path}")
-                    click.echo(f"    Skipping validation")
                 else:
-                    click.echo(f"  Validating against: {codebase_path}")
-
-                    import re
-                    validated_count = 0
-
-                    for hyp_file in hypothesis_files:
-                        hyp_id = hyp_file.stem
-                        hyp_content = hyp_file.read_text()
-
-                        # Extract location and sink from hypothesis
-                        location_match = re.search(r'\*\*Location:\*\*\s*`([^`]+)`', hyp_content)
-                        sink_match = re.search(r'\*\*Function:\*\*\s*`([^`]+)`', hyp_content)
-
-                        location = location_match.group(1) if location_match else "unknown"
-                        sink = sink_match.group(1) if sink_match else "unknown"
-
-                        # Search for dangerous patterns
-                        found = False
-                        evidence_list = []
-
-                        for java_file in codebase.rglob("*.java"):
-                            try:
-                                content = java_file.read_text()
-                            except:
-                                continue
-
-                            # Check for dangerous patterns based on sink
-                            if any(pattern in content for pattern in ["ObjectInputStream", "readObject"]) and "deserial" in sink.lower():
-                                found = True
-                                evidence_list.append(f"{java_file.name} (ObjectInputStream)")
-                            elif "Class.forName" in content and any(p in content for p in ["newInstance", "getConstructor"]):
-                                if "forName" in sink or "ClassLoader" in sink:
-                                    found = True
-                                    evidence_list.append(f"{java_file.name} (Class.forName)")
-                            elif any(p in content for p in ["Runtime.getRuntime()", "ProcessBuilder"]) and ("exec" in sink or "Runtime" in sink):
-                                found = True
-                                evidence_list.append(f"{java_file.name} (Runtime/ProcessBuilder)")
-                            elif any(p in content for p in ["parseExpression", "evaluate", "eval"]) and "expression" in hyp_id.lower():
-                                found = True
-                                evidence_list.append(f"{java_file.name} (Expression evaluation)")
-
-                        status = "CONFIRMED" if found else "UNCLEAR"
-                        symbol = "✓" if found else "⚠"
-                        click.echo(f"    {symbol} {hyp_id}: {status}", err=True if not found else False)
-
-                        if evidence_list:
-                            for evidence in evidence_list[:2]:  # Show first 2 matches
-                                click.echo(f"       → {evidence}")
-
-                        validated_count += 1
-
-                    click.echo(f"  ✓ Validated {validated_count} hypotheses")
+                    click.echo(f"  ✓ No vulnerabilities found")
             else:
-                click.echo(f"  To validate, run with:")
-                click.echo(f"    --validate --codebase-path /path/to/activemq")
-                for hyp_file in hypothesis_files[:3]:
-                    click.echo(f"    - {hyp_file.name}")
-                if len(hypothesis_files) > 3:
-                    click.echo(f"    ... and {len(hypothesis_files) - 3} more")
+                click.echo(f"  ⚠ Codebase path not found: {codebase_path}")
         else:
-            click.echo("  ⚠ No hypotheses found")
+            click.echo(f"  To analyze code, run with:")
+            click.echo(f"    --validate --codebase-path /path/to/source")
 
         # Phase 5: Generate report
         click.echo("\n[5/5] Generate hardening backlog...")
