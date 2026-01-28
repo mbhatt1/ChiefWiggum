@@ -1,0 +1,13 @@
+# Core dependencies
+PyYAML>=6.0
+click>=8.0
+tabulate>=0.9.0
+dataclasses-json>=0.5.7
+
+# Development dependencies (optional)
+# Install with: pip install -e ".[dev]"
+pytest>=7.0
+pytest-cov>=3.0
+black>=22.0
+flake8>=4.0
+mypy>=0.950
