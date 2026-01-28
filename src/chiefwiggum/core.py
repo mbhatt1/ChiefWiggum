@@ -112,7 +112,13 @@ class EvidenceLedger:
                         status=EvidenceType(data["status"]),
                         description=data["description"],
                         test_date=data["test_date"],
-                        details=data.get("details", {})
+                        details=data.get("details", {}),
+                        action=ActionType(data.get("action", "PATCH")),
+                        control_id=data.get("control_id"),
+                        patch_location=data.get("patch_location"),
+                        test_case=data.get("test_case"),
+                        blocking_reason=data.get("blocking_reason"),
+                        instrumentation=data.get("instrumentation"),
                     )
                     self.ledger.append(evidence)
 
@@ -152,7 +158,11 @@ class EvidenceLedger:
         file_path = (self.evidence_dir / evidence_type.value /
                      f"{hypothesis_id}.json")
         with open(file_path, "w") as f:
-            json.dump(asdict(evidence), f, indent=2, default=str)
+            # Convert to dict and fix enum serialization
+            evidence_dict = asdict(evidence)
+            evidence_dict["status"] = evidence.status.value
+            evidence_dict["action"] = evidence.action.value
+            json.dump(evidence_dict, f, indent=2, default=str)
 
     def has_been_tested(self, hypothesis_id: str) -> bool:
         """Check if hypothesis was already tested"""
