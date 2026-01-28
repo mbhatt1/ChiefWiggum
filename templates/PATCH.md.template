@@ -1,0 +1,197 @@
+# Patch: [Patch ID]
+
+**ID:** `P-###`
+**Hypothesis:** `hyp_###`
+**Control:** `C-###` (if applicable)
+**Status:** `Drafted | Ready for Review | In PR | Deployed`
+**Date Created:** [YYYY-MM-DD]
+
+---
+
+## Summary
+
+One sentence: What does this patch fix?
+
+> [e.g., "Remove shell execution of unzip command and replace with direct C library call"]
+
+---
+
+## Files Modified
+
+List all files that this patch changes:
+
+- `src/unzip.c` — Replace system() with safe_exec()
+- `src/upload.c` — Call safe_exec() instead of popen()
+- `tests/test_upload.c` — Add regression test for shell injection
+
+---
+
+## Diff
+
+### src/unzip.c
+
+```diff
+  int extract_zip(const char *filename, const char *output_dir) {
+-     char cmd[1024];
+-     snprintf(cmd, sizeof(cmd), "unzip -d %s %s", output_dir, filename);
+-     return popen(cmd, "r");
++     // Use safe_exec with argv array (no shell interpretation)
++     const char *argv[] = {"unzip", "-d", output_dir, filename, NULL};
++     return safe_exec(argv);
+  }
+```
+
+### src/upload.c
+
+```diff
+  void handle_upload(request_t *req) {
+      const char *filename = get_multipart_filename(req);
++     // Validate filename before use
++     if (!validate_filename(filename)) {
++         send_error(req, "Invalid filename");
++         return;
++     }
+      extract_zip(filename, "/tmp/uploads");
+  }
+```
+
+### tests/test_upload.c (NEW)
+
+```diff
++ void test_shell_injection_blocked() {
++     const char *dangerous[] = {
++         "`id`.zip",
++         "$(whoami).zip",
++         "test; cat /etc/passwd; .zip"
++     };
++
++     for (int i = 0; i < 3; i++) {
++         // Should be rejected or escaped, never executed
++         int result = handle_upload_safe(dangerous[i]);
++         assert_equals(result, ERROR_INVALID_FILENAME);
++     }
++ }
+```
+
+---
+
+## Why This Fix Works
+
+**Root cause:** Filename passed unsanitized to `popen()`, which spawns `/bin/sh -c`, allowing shell metacharacter interpretation.
+
+**Fix:** Replace `popen()` with `safe_exec()` that uses `argv` array. The kernel never interprets arguments as shell syntax when executed via `execve()`.
+
+**Confidence:** 100% (no way for attacker to inject shell syntax into argv array)
+
+---
+
+## Testing
+
+### Regression Tests
+
+```bash
+# Run existing tests (must pass)
+pytest tests/test_upload.py -v
+
+# Run new shell injection tests
+pytest tests/test_upload.py::test_shell_injection_blocked -v
+
+# Test with real ZIP files
+./tests/test_uploads_real.sh
+```
+
+### Manual Testing
+
+```bash
+# Create malicious ZIP
+touch file.txt
+zip normal.zip file.txt
+mv normal.zip '`id`.zip'
+
+# Upload and verify command does NOT execute
+curl -F 'file=@`id`.zip' http://localhost:8080/api/upload
+# Should return success without executing 'id'
+```
+
+---
+
+## Deployment
+
+### Safe to Deploy?
+
+- [ ] All tests pass
+- [ ] Code review approved
+- [ ] Security review approved
+- [ ] No breaking changes
+
+### Rollback Plan
+
+This patch is backwards compatible. If issues arise:
+
+```bash
+# Revert
+git revert COMMIT_HASH
+
+# Or roll back to previous version
+docker pull myapp:previous-tag
+```
+
+---
+
+## PR Template
+
+Use this when creating a pull request:
+
+```markdown
+## Summary
+
+Fixes #issue-number
+
+Prevents shell injection in file upload handler by replacing `popen()`
+with `safe_exec()` that uses argv array instead of shell string.
+
+## Changes
+
+- Replace `system()` calls with `safe_exec()` (argv-based)
+- Add filename validation before processing
+- Add regression tests for shell injection
+
+## Related Controls
+
+Implements control C-001 (Shell Execution Wrapper)
+
+## Testing
+
+- [ ] Unit tests pass
+- [ ] Integration tests pass
+- [ ] Manual testing complete
+- [ ] No performance regression
+```
+
+---
+
+## Security Checklist
+
+- [ ] No new shell execution introduced elsewhere
+- [ ] All inputs to safe_exec() are validated
+- [ ] Regression tests cover attack vectors
+- [ ] Deployment won't cause downtime
+- [ ] Audit logging captures attempts (C-012)
+
+---
+
+## References
+
+**Related:**
+- `hyp_###` — Hypothesis that motivated this patch
+- `C-###` — Control this implements
+
+**CVE/CWE:**
+- CWE-78 (OS Command Injection)
+- Similar to CVE-XXXX-XXXXX
+
+---
+
+## Notes
+
+[Implementation notes, gotchas, alternatives considered]

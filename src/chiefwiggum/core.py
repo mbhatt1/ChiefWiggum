@@ -1,11 +1,13 @@
 """
 Core ChiefWiggum Loop implementation - Evaluator, Evidence Ledger, Surface Enumeration
+
+ChiefWiggum++ edition: Every hypothesis closes with an actionable output.
 """
 
 import json
 from pathlib import Path
 from datetime import datetime
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass, asdict, field
 from typing import List, Optional, Dict
 from enum import Enum
 
@@ -17,15 +19,50 @@ class EvidenceType(Enum):
     UNCLEAR = "unclear"
 
 
+class ActionType(Enum):
+    """What action closes this hypothesis"""
+    PATCH = "PATCH"          # Confirmed, has patch
+    CONTROL = "CONTROL"      # Confirmed, needs control (hardening suggestion)
+    INSTRUMENT = "INSTRUMENT"  # Unclear, needs instrumentation to resolve
+    BLOCKER = "BLOCKER"      # Disproven, but records why
+
+
 @dataclass
 class Evidence:
-    """Single piece of evidence about a vulnerability hypothesis"""
+    """Single piece of evidence about a vulnerability hypothesis
+
+    ChiefWiggum++ requirement: Every evidence entry must have an action.
+    No hypothesis ends as just "notes".
+    """
     hypothesis_id: str
     code_location: str
     status: EvidenceType
     description: str
     test_date: str
     details: Dict
+
+    # ChiefWiggum++ fields - REQUIRED
+    action: ActionType = ActionType.PATCH  # REQUIRED: What do we do about this?
+    control_id: Optional[str] = None       # If CONTROL, which control (C-001, etc)?
+    patch_location: Optional[str] = None   # If PATCH, file/function to modify
+    test_case: Optional[str] = None        # If PATCH, regression test requirement
+    blocking_reason: Optional[str] = None  # If DISPROVEN, why is it safe?
+    instrumentation: Optional[str] = None  # If UNCLEAR, what data would resolve it?
+
+    def validate(self):
+        """Ensure evidence has complete action"""
+        if not self.action:
+            raise ValueError(f"Evidence {self.hypothesis_id} has no action. "
+                           "Must be PATCH, CONTROL, INSTRUMENT, or BLOCKER")
+
+        if self.action == ActionType.CONTROL and not self.control_id:
+            raise ValueError(f"{self.hypothesis_id}: CONTROL action requires control_id")
+
+        if self.action == ActionType.PATCH and not self.patch_location:
+            raise ValueError(f"{self.hypothesis_id}: PATCH action requires patch_location")
+
+        if self.action == ActionType.INSTRUMENT and not self.instrumentation:
+            raise ValueError(f"{self.hypothesis_id}: INSTRUMENT action requires instrumentation")
 
 
 @dataclass
@@ -80,23 +117,42 @@ class EvidenceLedger:
                     self.ledger.append(evidence)
 
     def add_evidence(self, hypothesis_id: str, evidence_type: EvidenceType,
-                     code_location: str, description: str, details: Dict = None):
-        """Record a test result"""
+                     code_location: str, description: str, details: Dict = None,
+                     action: ActionType = ActionType.PATCH,
+                     control_id: Optional[str] = None,
+                     patch_location: Optional[str] = None,
+                     test_case: Optional[str] = None,
+                     blocking_reason: Optional[str] = None,
+                     instrumentation: Optional[str] = None):
+        """Record a test result with actionable output (ChiefWiggum++)
+
+        REQUIRED: Must specify action (PATCH, CONTROL, INSTRUMENT, BLOCKER)
+        """
         evidence = Evidence(
             hypothesis_id=hypothesis_id,
             code_location=code_location,
             status=evidence_type,
             description=description,
             test_date=datetime.now().isoformat(),
-            details=details or {}
+            details=details or {},
+            action=action,
+            control_id=control_id,
+            patch_location=patch_location,
+            test_case=test_case,
+            blocking_reason=blocking_reason,
+            instrumentation=instrumentation,
         )
+
+        # Validate before persisting
+        evidence.validate()
+
         self.ledger.append(evidence)
 
         # Persist to disk
         file_path = (self.evidence_dir / evidence_type.value /
                      f"{hypothesis_id}.json")
         with open(file_path, "w") as f:
-            json.dump(asdict(evidence), f, indent=2)
+            json.dump(asdict(evidence), f, indent=2, default=str)
 
     def has_been_tested(self, hypothesis_id: str) -> bool:
         """Check if hypothesis was already tested"""
@@ -270,4 +326,137 @@ Evidence Ledger Prevents Re-testing: YES ✓
 
 D'oh! — ChiefWiggum Loop
         """
+        return report
+
+    def control_map_report(self) -> str:
+        """Generate Ralph-style Control Map report
+
+        Groups evidence by control category and action type.
+        This is what makes ChiefWiggum++ effective like Ralph.
+        """
+        from .control import ControlCategory, STANDARD_CONTROLS
+
+        report = """
+╔════════════════════════════════════════════════════════════════════════════╗
+║                     CHIEFWIGGUM++ CONTROL MAP REPORT                       ║
+║                   (Ralph-effective hardening backlog)                      ║
+╚════════════════════════════════════════════════════════════════════════════╝
+
+Generated: {date}
+
+This report groups all findings by control category and action type.
+Use this to prioritize hardening work and track progress.
+
+""".format(date=datetime.now().isoformat())
+
+        # Group evidence by action type
+        patches = [e for e in self.ledger.ledger if e.action == ActionType.PATCH]
+        controls = [e for e in self.ledger.ledger if e.action == ActionType.CONTROL]
+        instrumentation = [e for e in self.ledger.ledger if e.action == ActionType.INSTRUMENT]
+        blockers = [e for e in self.ledger.ledger if e.action == ActionType.BLOCKER]
+
+        # Patches (highest priority)
+        report += f"""
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PATCHES READY ({len(patches)} items) ← Start here for quick wins
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+"""
+        for evidence in patches:
+            report += f"""
+  [{evidence.hypothesis_id}] {evidence.description}
+    Location: {evidence.patch_location}
+    Test: {evidence.test_case}
+    Status: ✓ CONFIRMED
+"""
+
+        # Controls (group by category)
+        report += f"""
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CONTROLS NEEDED ({len(controls)} items) ← Deploy these hardening controls
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+"""
+        for evidence in controls:
+            control = STANDARD_CONTROLS.get(evidence.control_id, None)
+            control_name = control.name if control else evidence.control_id
+            report += f"""
+  [{evidence.hypothesis_id}] {evidence.description}
+    Control: {evidence.control_id} ({control_name})
+    Status: ✓ CONFIRMED, needs {evidence.control_id}
+"""
+
+        # Instrumentation (unresolved, needs data)
+        report += f"""
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+INSTRUMENTATION NEEDED ({len(instrumentation)} items) ← Add tracing/logging to resolve
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+"""
+        for evidence in instrumentation:
+            report += f"""
+  [{evidence.hypothesis_id}] {evidence.description}
+    Missing: {evidence.instrumentation}
+    Status: ? UNCLEAR until above data available
+"""
+
+        # Blockers (disproven, reasons documented)
+        report += f"""
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+BLOCKERS / SAFE SURFACES ({len(blockers)} items) ← These don't need fixes (yet)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+"""
+        for evidence in blockers:
+            report += f"""
+  [{evidence.hypothesis_id}] {evidence.description}
+    Reason: {evidence.blocking_reason}
+    Status: ✗ DISPROVEN
+"""
+
+        # Control Library Summary
+        report += """
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CONTROL LIBRARY REFERENCE (12 Standard Controls)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+EXECUTION CONTROLS:
+  C-001: Shell Execution Wrapper (no raw system/popen/spawn)
+  C-002: Argument Allowlist + No Shell Parsing
+  C-010: Rate Limits + Payload Size Caps
+
+PARSER CONTROLS:
+  C-005: YAML Safe Loader Only
+  C-006: XML External Entities (XXE) Disabled
+  C-007: Deserialization Allowlist/Ban
+  C-009: Template Rendering Sandboxing
+
+IO CONTROLS:
+  C-003: Path Canonicalization + Allowlist
+  C-004: Zip/Tar Safe Extract (no symlinks, no .., size limits)
+
+AUTHZ CONTROLS:
+  C-011: Privilege Drop + Sandbox Around Risky Ops
+  C-012: Audit Logging on Trust Boundaries
+
+NETWORK CONTROLS:
+  C-008: SSRF Outbound Allowlist + DNS Pinning
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SUMMARY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Ready to patch:        {patches} items
+Ready for control:     {controls} items
+Needs instrumentation: {instrumentation} items
+Documented as safe:    {blockers} items
+
+Next step: Implement patches and controls in order above.
+Every hypothesis closes with an action (PATCH | CONTROL | INSTRUMENT | BLOCKER).
+
+D'oh! — ChiefWiggum++
+""".format(patches=len(patches), controls=len(controls),
+           instrumentation=len(instrumentation), blockers=len(blockers))
+
         return report

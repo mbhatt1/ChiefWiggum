@@ -1,0 +1,177 @@
+# Attack Surface Enumeration (ChiefWiggum++ Edition)
+
+# Each entry is a reachable path from entry point → sink
+# ChiefWiggum++ ADDS Ralph-effective metadata for hardening
+
+surfaces:
+
+  - id: upload_shell_injection
+    name: "File upload with shell metacharacters → RCE"
+
+    # Ralph Metadata (ChiefWiggum++):
+    entrypoint: "POST /api/upload (multipart filename)"
+    sink: "popen(unzip -d /tmp + filename)"
+    data_transformations:
+      - "multipart parsing (decode headers)"
+      - "filename extraction (no normalization)"
+      - "string concatenation (shell command building)"
+      - "shell interpretation (popen spawns /bin/sh)"
+
+    trust_boundary: "untrusted (HTTP) → privileged (file extraction)"
+    recommended_control: "C-001"  # Shell Execution Wrapper
+    default_fix: "replace popen() with safe_exec(argv)"
+
+    # Full reachability chain:
+    chain:
+      - step: "HTTP multipart parsing"
+        location: "src/upload.c:45"
+        function: "get_multipart_filename()"
+      - step: "Pass to ZIP extraction"
+        location: "src/unzip.c:87"
+        function: "extract_zip()"
+      - step: "Build shell command with filename"
+        location: "src/unzip.c:92"
+        function: "popen()"
+        danger: "NO ESCAPING HERE"
+
+    status: "untested"
+    notes: "Filename from HTTP directly concatenated into shell command"
+
+
+  - id: config_injection
+    name: "Config file → environment variable expansion → shell execution"
+
+    # Ralph Metadata:
+    entrypoint: "CLI flag --config /path/to/config.conf"
+    sink: "system() called with expanded variables"
+    data_transformations:
+      - "INI file parsing"
+      - "variable expansion (${USER_PROVIDED})"
+      - "no escaping"
+      - "shell execution"
+
+    trust_boundary: "local file (potentially untrusted) → RCE as app user"
+    recommended_control: "C-001"  # Shell Execution Wrapper
+    default_fix: "disable shell execution, or validate/escape variables"
+
+    chain:
+      - step: "Parse config file"
+        location: "src/config.c:200"
+        function: "parse_ini()"
+      - step: "Expand variables in values"
+        location: "src/config.c:250"
+        function: "expand_vars()"
+      - step: "Execute expanded string"
+        location: "src/config.c:260"
+        function: "system()"
+        danger: "ACCEPTS UNVALIDATED INPUT"
+
+    status: "untested"
+    notes: "Config file can contain ${command} or $(command) to get RCE"
+
+
+  - id: zip_path_traversal
+    name: "ZIP archive with relative paths → directory traversal"
+
+    # Ralph Metadata:
+    entrypoint: "ZIP file with crafted entry names"
+    sink: "extract_zip() writes to arbitrary locations"
+    data_transformations:
+      - "ZIP parsing"
+      - "path extraction (no canonicalization)"
+      - "../ not removed"
+
+    trust_boundary: "untrusted archive → filesystem"
+    recommended_control: "C-003"  # Path Canonicalization + Allowlist
+    default_fix: "canonicalize paths, reject ../ and absolute paths"
+
+    chain:
+      - step: "Open ZIP archive"
+        location: "src/unzip.c:50"
+      - step: "Extract entries without validation"
+        location: "src/unzip.c:100"
+        danger: "NO PATH VALIDATION"
+
+    status: "untested"
+    notes: "ZIP can contain ../../../etc/passwd to escape /tmp"
+
+
+  - id: symlink_following
+    name: "Symlinks in extracted archives → arbitrary file write"
+
+    # Ralph Metadata:
+    entrypoint: "ZIP/TAR archive containing symlinks"
+    sink: "extractall() follows symlinks"
+    data_transformations:
+      - "archive parsing"
+      - "symlink creation (no checks)"
+      - "write through symlink"
+
+    trust_boundary: "untrusted archive → filesystem"
+    recommended_control: "C-004"  # Zip/Tar Safe Extract
+    default_fix: "reject symlinks in archives"
+
+    chain:
+      - step: "Extract archive"
+        location: "src/unzip.c:87"
+      - step: "Follow symlinks"
+        location: "system libzip"
+        danger: "AUTOMATIC SYMLINK FOLLOWING"
+
+    status: "untested"
+    notes: "Archive with symlink to /etc/passwd can overwrite system files"
+
+
+  - id: yaml_code_execution
+    name: "YAML deserialization with !!python/object → code execution"
+
+    # Ralph Metadata:
+    entrypoint: "YAML file or user-provided YAML string"
+    sink: "yaml.load() with FullLoader or UnsafeLoader"
+    data_transformations:
+      - "YAML parsing"
+      - "object instantiation"
+      - "arbitrary code execution"
+
+    trust_boundary: "untrusted YAML → code execution"
+    recommended_control: "C-005"  # YAML Safe Loader Only
+    default_fix: "use yaml.safe_load() instead of yaml.load()"
+
+    chain:
+      - step: "Load YAML from user input"
+        location: "src/config.py:50"
+        function: "yaml.load()"
+        danger: "USING FullLoader OR UNSAFE"
+
+    status: "untested"
+    notes: "YAML with !!python/object:os.system can execute commands"
+
+
+---
+
+# How to Use This File:
+
+# For each surface:
+# 1. LIST the entry point (where untrusted input enters)
+# 2. LIST the sink (dangerous function/API)
+# 3. DOCUMENT data transformations (how data changes)
+# 4. IDENTIFY trust boundary (privilege escalation?)
+# 5. ASSIGN recommended control (from C-001 to C-012)
+# 6. SUGGEST default_fix (sanitize, parameterize, disable, allowlist, sandbox)
+
+# Status values:
+#   untested - not yet evaluated
+#   testing - currently investigating
+#   exploitable - confirmed vulnerability
+#   mitigated - vulnerable but has control in place
+#   unreachable - proved impossible to exploit
+
+# Ralph Metadata (NEW in ChiefWiggum++):
+# These fields make fixes obvious automatically:
+
+# entrypoint:         Where attacker provides input
+# sink:               Dangerous function/API
+# data_transformations: How input changes before sink
+# trust_boundary:     Privilege escalation? Confidentiality breach?
+# recommended_control: One of C-001 through C-012
+# default_fix:        Type of hardening (sanitize/parameterize/disable/allowlist/sandbox)

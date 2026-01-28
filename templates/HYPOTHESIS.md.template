@@ -1,0 +1,217 @@
+# Hypothesis [NUMBER]
+
+**ID:** `hyp_001`
+**Surface ID:** `upload_rce_v1`
+**Status:** `pending`
+**Created:** [YYYY-MM-DD]
+**Tested:** [YYYY-MM-DD or TBD]
+
+---
+
+## ChiefWiggum++ Ralphization Checklist (15 minutes)
+
+**Every hypothesis MUST include these 5 lines.** No hypothesis ends as just "notes."
+
+### 1. Reachability
+**What exactly is reachable from where?**
+```
+HTTP POST /api/upload
+  → multipart filename extraction (upload.c:45)
+  → passed unsanitized to unzip.c:87
+  → used in popen() at unzip.c:92
+  → shell interprets filename as commands
+```
+
+### 2. Sink
+**What function/API is the danger point?**
+```
+popen("unzip -d /tmp " + filename, "r")
+Location: src/unzip.c:92
+Danger: Shell metacharacters in filename executed as commands
+```
+
+### 3. Control
+**Which of the 12 standard controls blocks this class?**
+```
+C-001: Shell Execution Wrapper
+       (Replace all popen/system/spawn with argv-based safe_exec)
+```
+
+### 4. Patch
+**What file/function would you change?**
+```
+src/unzip.c:92
+  OLD: popen("unzip -d /tmp " + filename, "r")
+  NEW: safe_exec(["unzip", "-d", "/tmp", filename])
+```
+
+### 5. Test
+**What regression test proves it stays fixed?**
+```
+test_shell_injection_blocked():
+  - Attempt injection: `id`.zip, $(whoami).zip, etc.
+  - Assertion: Command output NOT in response
+  - Coverage: All 8 shell metacharacters `, $(), $({}), {}, |, &, ;
+```
+
+---
+
+## Claim
+
+**Concise statement of the vulnerability:**
+
+> An attacker can upload a ZIP file with shell metacharacters in the filename,
+> which are not escaped when passed to `popen()`, resulting in arbitrary command execution.
+
+---
+
+## Reachability Path (from Checklist)
+
+Data flows from untrusted input to dangerous sink:
+
+```
+┌─ Entry: HTTP POST /api/upload (multipart file)
+│
+├─ upload.c:45 → Extract filename from Content-Disposition header
+│
+├─ unzip.c:87 → Pass filename to extract_zip()
+│
+├─ unzip.c:92 → Build shell command: "unzip -d /tmp " + filename
+│
+├─ popen() → Spawn /bin/sh -c "unzip -d /tmp [ATTACKER_FILENAME]"
+│
+└─ Shell interprets [ATTACKER_FILENAME] as commands
+   └─ ✓ RCE: Commands execute with app privileges
+```
+
+---
+
+## Proof Required
+
+**What would prove this true?**
+
+- [ ] HTTP response contains output of executed command (e.g., username from `whoami`)
+- [ ] Sanitizer detects crash / data flow analyzer confirms path
+- [ ] PoC successfully executes arbitrary command
+
+**What would prove this false?**
+
+- [ ] Filename is escaped or quoted before popen()
+- [ ] Metadata validation strips/rejects special characters
+- [ ] Code path doesn't reach popen() (different implementation)
+
+---
+
+## Assumptions
+
+- Filename parameter is attacker-controlled ✓ (confirmed)
+- popen() receives unescaped filename (assumed, needs verification)
+- No input validation between entry (line 45) and sink (line 92)
+- libzip version 1.3.0 doesn't have built-in protections
+
+---
+
+## Test Plan
+
+### Test 1: Baseline (Confirm functionality)
+```bash
+# Normal ZIP file upload (should work)
+zip test.zip README.md
+curl -F 'file=@test.zip' http://localhost:8080/api/upload
+# Expected: 200 OK, file extracted successfully
+```
+
+### Test 2: Command substitution with backticks
+```bash
+touch dummy.txt
+zip normal.zip dummy.txt
+mv normal.zip '`id`.zip'
+
+curl -F 'file=@`id`.zip' http://localhost:8080/api/upload
+
+# Check response for uid/gid output → Confirmed!
+```
+
+### Test 3: Command substitution with $()
+```bash
+zip normal.zip dummy.txt
+mv normal.zip '$(whoami).zip'
+
+curl -F 'file=@$(whoami).zip' http://localhost:8080/api/upload
+# Check response for username
+```
+
+### Test 4: Semicolon command chaining
+```bash
+zip normal.zip dummy.txt
+mv normal.zip 'normal; id;.zip'
+
+curl -F 'file=@normal; id;.zip' http://localhost:8080/api/upload
+# Check response for id output
+```
+
+---
+
+## Outcome (to be filled in during testing)
+
+### Result: `[ ] Confirmed [ ] Disproven [ ] Unclear`
+
+**What happened:**
+[Describe observed behavior: success, failure, crash, error message]
+
+**Evidence:**
+- PoC: `pocs/upload_shell_injection.sh`
+- Logs: [command output or error]
+- Code trace: [gdb output, strace, etc.]
+
+**Why it succeeded/failed:**
+[Explain the root cause: is input validated? how?]
+
+---
+
+## Action (ChiefWiggum++)
+
+**REQUIRED:** How does this hypothesis close?
+
+```
+Status: CONFIRMED ✓
+Action: PATCH
+Control: C-001 (Shell Execution Wrapper)
+Patch Location: src/unzip.c:92
+Test Case: test_shell_injection_blocked()
+```
+
+---
+
+## Next Steps (if confirmed)
+
+- [ ] Implement patch (C-001 control)
+- [ ] Write regression test
+- [ ] Code review
+- [ ] Deploy to staging
+- [ ] Verify no regressions
+- [ ] Merge and deploy
+
+---
+
+## Next Steps (if disproven)
+
+- [ ] Move to `evidence/disproven/`
+- [ ] Document why it's safe
+- [ ] Update SURFACES.yaml status
+- [ ] Don't re-test (evidence ledger blocks it)
+
+---
+
+## Related Hypotheses
+
+- `hyp_002`: Config injection (different entry point, similar sink)
+- Blocked by: none
+- Blocks: none
+
+---
+
+## References
+
+- **CWE-78:** Improper Neutralization of Special Elements used in OS Command
+- **OWASP A03:2021:** Injection
