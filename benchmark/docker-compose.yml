@@ -1,0 +1,95 @@
+version: '3.8'
+
+services:
+  # SEC-Bench evaluation sandbox
+  evaluator:
+    build:
+      context: ..
+      dockerfile: benchmark/sandbox/Dockerfile
+    container_name: secbench-evaluator
+
+    environment:
+      # Anthropic API credentials
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+
+      # Evaluation config
+      DATASET_SOURCE: "synthetic"  # Use "synthetic" for quick test, "huggingface" for full
+      DATASET_LIMIT: "100"
+      TOOLS: "chiefwiggum claude-haiku claude-opus"
+
+      # Logging
+      LOG_LEVEL: "INFO"
+
+    volumes:
+      # Mount results directory for output
+      - ./results:/secbench/benchmark/results
+
+      # Mount configs
+      - ./configs:/secbench/benchmark/configs:ro
+
+      # Mount API key file (alternative to env var)
+      - ~/.anthropic:/root/.anthropic:ro
+
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '4'
+          memory: 4G
+        reservations:
+          cpus: '2'
+          memory: 2G
+
+    # Restart policy
+    restart: on-failure
+
+    # Logging
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Optional: Results visualizer
+  results:
+    image: python:3.11-slim
+    container_name: secbench-results
+
+    volumes:
+      - ./results:/results:ro
+
+    command: |
+      python3 -c "
+      import json
+      import glob
+
+      # Read latest results
+      results_files = sorted(glob.glob('/results/*.json'))
+      if results_files:
+          with open(results_files[-1]) as f:
+              data = json.load(f)
+
+          print('=== SEC-BENCH EVALUATION RESULTS ===')
+          print(f\"Timestamp: {data['timestamp']}\")
+          print(f\"Dataset Size: {data['dataset_size']}\")
+          print()
+
+          for tool, metrics in data['metrics'].items():
+              print(f\"{tool}:\")
+              print(f\"  Detection Rate:     {metrics['detection_rate']:.1f}%\")
+              print(f\"  True Positive Rate: {metrics['true_positive_rate']:.1f}%\")
+              print(f\"  Avg Patch Quality:  {metrics['avg_patch_quality']:.1f}/100\")
+              print(f\"  Cost Estimate:      \${metrics['cost_estimate']:.2f}\")
+              print()
+      "
+
+    depends_on:
+      - evaluator
+
+volumes:
+  secbench_data:
+    driver: local
+
+networks:
+  default:
+    name: secbench-network

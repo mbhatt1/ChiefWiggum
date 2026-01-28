@@ -1,0 +1,152 @@
+{
+  "timestamp": "2026-01-28T13:49:19.972862",
+  "dataset_size": 100,
+  "analyses_count": 60,
+  "metrics": {
+    "chiefwiggum": {
+      "tool": "chiefwiggum",
+      "detection_rate": 0.0,
+      "true_positive_rate": 0,
+      "false_positive_rate": 0,
+      "avg_patch_quality": 0.0,
+      "avg_detection_time": 0.021545660495758057,
+      "total_analyses": 20,
+      "successful_patches": 0,
+      "cost_estimate": 17.4
+    },
+    "openai-haiku": {
+      "tool": "openai-haiku",
+      "detection_rate": 0.0,
+      "true_positive_rate": 0,
+      "false_positive_rate": 0,
+      "avg_patch_quality": 0.0,
+      "avg_detection_time": 1.9991397857666014e-05,
+      "total_analyses": 20,
+      "successful_patches": 0,
+      "cost_estimate": 17.4
+    },
+    "openai-opus": {
+      "tool": "openai-opus",
+      "detection_rate": 0.0,
+      "true_positive_rate": 0,
+      "false_positive_rate": 0,
+      "avg_patch_quality": 0.0,
+      "avg_detection_time": 1.9764900207519533e-05,
+      "total_analyses": 20,
+      "successful_patches": 0,
+      "cost_estimate": 17.4
+    }
+  },
+  "sample_analyses": [
+    {
+      "tool": "chiefwiggum",
+      "vulnerability_id": "njs.cve-2022-32414__0",
+      "detected": false,
+      "confidence": "LOW",
+      "time_seconds": 0.43054890632629395,
+      "patch_generated": false,
+      "patch_quality_score": 0.0,
+      "false_positive": false,
+      "reasoning": "OpenAI error: The api_key client option must be set either by pa"
+    },
+    {
+      "tool": "openai-haiku",
+      "vulnerability_id": "njs.cve-2022-32414__0",
+      "detected": false,
+      "confidence": "LOW",
+      "time_seconds": 3.218650817871094e-05,
+      "patch_generated": false,
+      "patch_quality_score": 0.0,
+      "false_positive": false,
+      "reasoning": "OpenAI API error"
+    },
+    {
+      "tool": "openai-opus",
+      "vulnerability_id": "njs.cve-2022-32414__0",
+      "detected": false,
+      "confidence": "LOW",
+      "time_seconds": 2.5033950805664062e-05,
+      "patch_generated": false,
+      "patch_quality_score": 0.0,
+      "false_positive": false,
+      "reasoning": "OpenAI API error"
+    },
+    {
+      "tool": "chiefwiggum",
+      "vulnerability_id": "gpac.cve-2023-5586__1",
+      "detected": false,
+      "confidence": "LOW",
+      "time_seconds": 2.193450927734375e-05,
+      "patch_generated": false,
+      "patch_quality_score": 0.0,
+      "false_positive": false,
+      "reasoning": "OpenAI error: The api_key client option must be set either by pa"
+    },
+    {
+      "tool": "openai-haiku",
+      "vulnerability_id": "gpac.cve-2023-5586__1",
+      "detected": false,
+      "confidence": "LOW",
+      "time_seconds": 2.09808349609375e-05,
+      "patch_generated": false,
+      "patch_quality_score": 0.0,
+      "false_positive": false,
+      "reasoning": "OpenAI API error"
+    },
+    {
+      "tool": "openai-opus",
+      "vulnerability_id": "gpac.cve-2023-5586__1",
+      "detected": false,
+      "confidence": "LOW",
+      "time_seconds": 2.002716064453125e-05,
+      "patch_generated": false,
+      "patch_quality_score": 0.0,
+      "false_positive": false,
+      "reasoning": "OpenAI API error"
+    },
+    {
+      "tool": "chiefwiggum",
+      "vulnerability_id": "njs.cve-2022-32414__2",
+      "detected": false,
+      "confidence": "LOW",
+      "time_seconds": 2.09808349609375e-05,
+      "patch_generated": false,
+      "patch_quality_score": 0.0,
+      "false_positive": false,
+      "reasoning": "OpenAI error: The api_key client option must be set either by pa"
+    },
+    {
+      "tool": "openai-haiku",
+      "vulnerability_id": "njs.cve-2022-32414__2",
+      "detected": false,
+      "confidence": "LOW",
+      "time_seconds": 1.9788742065429688e-05,
+      "patch_generated": false,
+      "patch_quality_score": 0.0,
+      "false_positive": false,
+      "reasoning": "OpenAI API error"
+    },
+    {
+      "tool": "openai-opus",
+      "vulnerability_id": "njs.cve-2022-32414__2",
+      "detected": false,
+      "confidence": "LOW",
+      "time_seconds": 1.9788742065429688e-05,
+      "patch_generated": false,
+      "patch_quality_score": 0.0,
+      "false_positive": false,
+      "reasoning": "OpenAI API error"
+    },
+    {
+      "tool": "chiefwiggum",
+      "vulnerability_id": "gpac.cve-2023-5586__3",
+      "detected": false,
+      "confidence": "LOW",
+      "time_seconds": 1.9788742065429688e-05,
+      "patch_generated": false,
+      "patch_quality_score": 0.0,
+      "false_positive": false,
+      "reasoning": "OpenAI error: The api_key client option must be set either by pa"
+    }
+  ]
+}

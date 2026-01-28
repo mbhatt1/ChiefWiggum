@@ -1,0 +1,130 @@
+{
+  "timestamp": "2026-01-27T23:25:04.061340",
+  "dataset_size": 100,
+  "analyses_count": 50,
+  "metrics": {
+    "chiefwiggum": {
+      "tool": "chiefwiggum",
+      "detection_rate": 50.0,
+      "true_positive_rate": 100.0,
+      "false_positive_rate": 0.0,
+      "avg_patch_quality": 50.0,
+      "avg_detection_time": 3.900527954101562e-06,
+      "total_analyses": 50,
+      "successful_patches": 25,
+      "cost_estimate": 43.5
+    }
+  },
+  "sample_analyses": [
+    {
+      "tool": "chiefwiggum",
+      "vulnerability_id": "njs.cve-2022-32414__0",
+      "detected": true,
+      "confidence": "MEDIUM",
+      "time_seconds": 7.867813110351562e-06,
+      "patch_generated": true,
+      "patch_quality_score": 50,
+      "false_positive": false,
+      "reasoning": "Pattern matching analysis"
+    },
+    {
+      "tool": "chiefwiggum",
+      "vulnerability_id": "gpac.cve-2023-5586__1",
+      "detected": false,
+      "confidence": "LOW",
+      "time_seconds": 4.0531158447265625e-06,
+      "patch_generated": false,
+      "patch_quality_score": 0.0,
+      "false_positive": false,
+      "reasoning": "Pattern matching analysis"
+    },
+    {
+      "tool": "chiefwiggum",
+      "vulnerability_id": "njs.cve-2022-32414__2",
+      "detected": true,
+      "confidence": "MEDIUM",
+      "time_seconds": 3.814697265625e-06,
+      "patch_generated": true,
+      "patch_quality_score": 50,
+      "false_positive": false,
+      "reasoning": "Pattern matching analysis"
+    },
+    {
+      "tool": "chiefwiggum",
+      "vulnerability_id": "gpac.cve-2023-5586__3",
+      "detected": false,
+      "confidence": "LOW",
+      "time_seconds": 4.0531158447265625e-06,
+      "patch_generated": false,
+      "patch_quality_score": 0.0,
+      "false_positive": false,
+      "reasoning": "Pattern matching analysis"
+    },
+    {
+      "tool": "chiefwiggum",
+      "vulnerability_id": "njs.cve-2022-32414__4",
+      "detected": true,
+      "confidence": "MEDIUM",
+      "time_seconds": 5.245208740234375e-06,
+      "patch_generated": true,
+      "patch_quality_score": 50,
+      "false_positive": false,
+      "reasoning": "Pattern matching analysis"
+    },
+    {
+      "tool": "chiefwiggum",
+      "vulnerability_id": "gpac.cve-2023-5586__5",
+      "detected": false,
+      "confidence": "LOW",
+      "time_seconds": 4.0531158447265625e-06,
+      "patch_generated": false,
+      "patch_quality_score": 0.0,
+      "false_positive": false,
+      "reasoning": "Pattern matching analysis"
+    },
+    {
+      "tool": "chiefwiggum",
+      "vulnerability_id": "njs.cve-2022-32414__6",
+      "detected": true,
+      "confidence": "MEDIUM",
+      "time_seconds": 4.0531158447265625e-06,
+      "patch_generated": true,
+      "patch_quality_score": 50,
+      "false_positive": false,
+      "reasoning": "Pattern matching analysis"
+    },
+    {
+      "tool": "chiefwiggum",
+      "vulnerability_id": "gpac.cve-2023-5586__7",
+      "detected": false,
+      "confidence": "LOW",
+      "time_seconds": 2.86102294921875e-06,
+      "patch_generated": false,
+      "patch_quality_score": 0.0,
+      "false_positive": false,
+      "reasoning": "Pattern matching analysis"
+    },
+    {
+      "tool": "chiefwiggum",
+      "vulnerability_id": "njs.cve-2022-32414__8",
+      "detected": true,
+      "confidence": "MEDIUM",
+      "time_seconds": 3.814697265625e-06,
+      "patch_generated": true,
+      "patch_quality_score": 50,
+      "false_positive": false,
+      "reasoning": "Pattern matching analysis"
+    },
+    {
+      "tool": "chiefwiggum",
+      "vulnerability_id": "gpac.cve-2023-5586__9",
+      "detected": false,
+      "confidence": "LOW",
+      "time_seconds": 2.86102294921875e-06,
+      "patch_generated": false,
+      "patch_quality_score": 0.0,
+      "false_positive": false,
+      "reasoning": "Pattern matching analysis"
+    }
+  ]
+}

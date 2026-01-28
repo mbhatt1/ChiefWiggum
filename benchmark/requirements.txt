@@ -1,0 +1,29 @@
+# SEC-Bench Evaluation Requirements
+
+# Core dependencies
+datasets>=2.14.0  # HuggingFace datasets for loading SEC-bench
+anthropic>=0.25.0  # Claude API client
+
+# Analysis tools
+regex>=2023.11.0  # Advanced pattern matching
+
+# Data processing
+pandas>=2.0.0
+numpy>=1.24.0
+
+# Utilities
+pyyaml>=6.0
+tqdm>=4.66.0
+python-dotenv>=1.0.0
+
+# Development
+pytest>=7.4.0
+black>=23.11.0
+flake8>=6.1.0
+
+# Docker integration
+docker>=6.1.0
+
+# Optional: For extended analysis
+scipy>=1.11.0  # Statistical analysis
+matplotlib>=3.8.0  # Visualization

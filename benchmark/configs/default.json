@@ -1,0 +1,36 @@
+{
+  "benchmark_name": "SEC-Bench Full Evaluation",
+  "description": "Comprehensive evaluation of ChiefWiggum vs Claude (Haiku/Opus) against SEC-bench vulnerabilities",
+  "dataset_source": "huggingface",
+  "dataset_limit": 600,
+  "local_data_path": "benchmark/data/secbench.json",
+  "results_dir": "benchmark/results",
+  "tools": [
+    "chiefwiggum",
+    "claude-haiku",
+    "claude-opus"
+  ],
+  "evaluation_metrics": [
+    "detection_rate",
+    "true_positive_rate",
+    "false_positive_rate",
+    "patch_quality",
+    "analysis_time",
+    "cost_estimate"
+  ],
+  "docker_sandbox": {
+    "enabled": true,
+    "image": "secbench-sandbox:latest",
+    "timeout_seconds": 30
+  },
+  "api_config": {
+    "anthropic_api_key_env": "ANTHROPIC_API_KEY",
+    "rate_limit_qps": 10
+  },
+  "scoring": {
+    "detection_weight": 0.3,
+    "accuracy_weight": 0.3,
+    "patch_quality_weight": 0.2,
+    "cost_weight": 0.2
+  }
+}

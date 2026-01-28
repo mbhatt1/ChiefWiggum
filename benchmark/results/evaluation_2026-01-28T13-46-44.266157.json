@@ -1,0 +1,152 @@
+{
+  "timestamp": "2026-01-28T13:46:44.266157",
+  "dataset_size": 100,
+  "analyses_count": 300,
+  "metrics": {
+    "chiefwiggum": {
+      "tool": "chiefwiggum",
+      "detection_rate": 50.0,
+      "true_positive_rate": 100.0,
+      "false_positive_rate": 0.0,
+      "avg_patch_quality": 50.0,
+      "avg_detection_time": 6.2513351440429685e-06,
+      "total_analyses": 100,
+      "successful_patches": 50,
+      "cost_estimate": 87.0
+    },
+    "claude-haiku": {
+      "tool": "claude-haiku",
+      "detection_rate": 0.0,
+      "true_positive_rate": 0,
+      "false_positive_rate": 0,
+      "avg_patch_quality": 0.0,
+      "avg_detection_time": 0.009459390640258789,
+      "total_analyses": 100,
+      "successful_patches": 0,
+      "cost_estimate": 50.0
+    },
+    "claude-opus": {
+      "tool": "claude-opus",
+      "detection_rate": 0.0,
+      "true_positive_rate": 0,
+      "false_positive_rate": 0,
+      "avg_patch_quality": 0.0,
+      "avg_detection_time": 0.005810151100158692,
+      "total_analyses": 100,
+      "successful_patches": 0,
+      "cost_estimate": 250.0
+    }
+  },
+  "sample_analyses": [
+    {
+      "tool": "chiefwiggum",
+      "vulnerability_id": "njs.cve-2022-32414__0",
+      "detected": true,
+      "confidence": "MEDIUM",
+      "time_seconds": 7.867813110351562e-06,
+      "patch_generated": true,
+      "patch_quality_score": 50,
+      "false_positive": false,
+      "reasoning": "Pattern matching analysis"
+    },
+    {
+      "tool": "claude-haiku",
+      "vulnerability_id": "njs.cve-2022-32414__0",
+      "detected": false,
+      "confidence": "LOW",
+      "time_seconds": 0.44142985343933105,
+      "patch_generated": false,
+      "patch_quality_score": 0.0,
+      "false_positive": false,
+      "reasoning": "API error: check credentials and rate limits"
+    },
+    {
+      "tool": "claude-opus",
+      "vulnerability_id": "njs.cve-2022-32414__0",
+      "detected": false,
+      "confidence": "LOW",
+      "time_seconds": 0.005749940872192383,
+      "patch_generated": false,
+      "patch_quality_score": 0.0,
+      "false_positive": false,
+      "reasoning": "API error: check credentials and rate limits"
+    },
+    {
+      "tool": "chiefwiggum",
+      "vulnerability_id": "gpac.cve-2023-5586__1",
+      "detected": false,
+      "confidence": "LOW",
+      "time_seconds": 5.9604644775390625e-06,
+      "patch_generated": false,
+      "patch_quality_score": 0.0,
+      "false_positive": false,
+      "reasoning": "Pattern matching analysis"
+    },
+    {
+      "tool": "claude-haiku",
+      "vulnerability_id": "gpac.cve-2023-5586__1",
+      "detected": false,
+      "confidence": "LOW",
+      "time_seconds": 0.0056231021881103516,
+      "patch_generated": false,
+      "patch_quality_score": 0.0,
+      "false_positive": false,
+      "reasoning": "API error: check credentials and rate limits"
+    },
+    {
+      "tool": "claude-opus",
+      "vulnerability_id": "gpac.cve-2023-5586__1",
+      "detected": false,
+      "confidence": "LOW",
+      "time_seconds": 0.0053522586822509766,
+      "patch_generated": false,
+      "patch_quality_score": 0.0,
+      "false_positive": false,
+      "reasoning": "API error: check credentials and rate limits"
+    },
+    {
+      "tool": "chiefwiggum",
+      "vulnerability_id": "njs.cve-2022-32414__2",
+      "detected": true,
+      "confidence": "MEDIUM",
+      "time_seconds": 7.867813110351562e-06,
+      "patch_generated": true,
+      "patch_quality_score": 50,
+      "false_positive": false,
+      "reasoning": "Pattern matching analysis"
+    },
+    {
+      "tool": "claude-haiku",
+      "vulnerability_id": "njs.cve-2022-32414__2",
+      "detected": false,
+      "confidence": "LOW",
+      "time_seconds": 0.005105018615722656,
+      "patch_generated": false,
+      "patch_quality_score": 0.0,
+      "false_positive": false,
+      "reasoning": "API error: check credentials and rate limits"
+    },
+    {
+      "tool": "claude-opus",
+      "vulnerability_id": "njs.cve-2022-32414__2",
+      "detected": false,
+      "confidence": "LOW",
+      "time_seconds": 0.005209684371948242,
+      "patch_generated": false,
+      "patch_quality_score": 0.0,
+      "false_positive": false,
+      "reasoning": "API error: check credentials and rate limits"
+    },
+    {
+      "tool": "chiefwiggum",
+      "vulnerability_id": "gpac.cve-2023-5586__3",
+      "detected": false,
+      "confidence": "LOW",
+      "time_seconds": 7.152557373046875e-06,
+      "patch_generated": false,
+      "patch_quality_score": 0.0,
+      "false_positive": false,
+      "reasoning": "Pattern matching analysis"
+    }
+  ]
+}
