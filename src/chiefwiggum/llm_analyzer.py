@@ -15,9 +15,10 @@ from openai import OpenAI
 class LLMAnalyzer:
     """Analyze code for vulnerabilities using GPT"""
 
-    def __init__(self, codebase_path: Path, model: str = "gpt-4o-mini", base_url: Optional[str] = None):
+    def __init__(self, codebase_path: Path, model: str = "gpt-4o-mini", base_url: Optional[str] = None, max_files: Optional[int] = 50):
         self.codebase = Path(codebase_path)
         self.model = model
+        self.max_files = max_files
         self.findings = []
 
         # Initialize OpenAI client with custom base_url if provided
@@ -48,8 +49,9 @@ class LLMAnalyzer:
         for pattern in file_patterns:
             files_to_analyze.extend(self.codebase.rglob(pattern))
 
-        # Limit to first 50 files for cost/speed
-        files_to_analyze = files_to_analyze[:50]
+        # Limit files for cost/speed (unless max_files is None for unlimited)
+        if self.max_files is not None:
+            files_to_analyze = files_to_analyze[:self.max_files]
 
         click_echo = None
         try:
@@ -175,7 +177,8 @@ Return ONLY valid JSON array, no other text.
 
 
 def analyze_with_gpt(codebase_path: Path, file_patterns: List[str] = None,
-                     model: str = "gpt-4o-mini", base_url: Optional[str] = None) -> List[Dict]:
+                     model: str = "gpt-4o-mini", base_url: Optional[str] = None,
+                     max_files: Optional[int] = 50) -> List[Dict]:
     """
     Public interface for LLM-based vulnerability analysis
 
@@ -184,9 +187,10 @@ def analyze_with_gpt(codebase_path: Path, file_patterns: List[str] = None,
         file_patterns: File patterns to analyze (e.g., ["*.py", "*.js"]) (default: ["*.java"])
         model: Model name to use (default: "gpt-4o-mini")
         base_url: Custom OpenAI API base URL (e.g., for Ollama)
+        max_files: Maximum number of files to analyze (default: 50, None for unlimited)
 
     Returns:
         List of detected vulnerabilities
     """
-    analyzer = LLMAnalyzer(codebase_path, model=model, base_url=base_url)
+    analyzer = LLMAnalyzer(codebase_path, model=model, base_url=base_url, max_files=max_files)
     return analyzer.analyze_codebase(file_patterns)
