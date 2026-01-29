@@ -35,7 +35,7 @@ class LLMAnalyzer:
         Scan codebase for vulnerabilities using LLM
 
         Args:
-            file_patterns: List of file patterns to analyze (e.g., ["*.java"])
+            file_patterns: List of file patterns to analyze (e.g., ["*.py", "*.js", "*.java"])
 
         Returns:
             List of vulnerability findings
@@ -132,7 +132,7 @@ Return ONLY valid JSON array, no other text.
                 messages=[
                     {
                         "role": "system",
-                        "content": "You are a security researcher analyzing Java code for vulnerabilities. Always respond with valid JSON only."
+                        "content": "You are a security researcher analyzing code for vulnerabilities. Always respond with valid JSON only."
                     },
                     {
                         "role": "user",
@@ -170,7 +170,7 @@ Return ONLY valid JSON array, no other text.
             return []
 
     def analyze_all(self) -> List[Dict]:
-        """Analyze all Java files in codebase"""
+        """Analyze all files in codebase using default patterns"""
         return self.analyze_codebase(file_patterns=["*.java"])
 
 
@@ -181,7 +181,7 @@ def analyze_with_gpt(codebase_path: Path, file_patterns: List[str] = None,
 
     Args:
         codebase_path: Path to the codebase to analyze
-        file_patterns: File patterns to analyze (default: ["*.java"])
+        file_patterns: File patterns to analyze (e.g., ["*.py", "*.js"]) (default: ["*.java"])
         model: Model name to use (default: "gpt-4o-mini")
         base_url: Custom OpenAI API base URL (e.g., for Ollama)
 

@@ -326,7 +326,8 @@ def validate(hypothesis, codebase_path, path):
 @click.option("--codebase-path", default=None, help="Path to target codebase for validation")
 @click.option("--openai-base-url", default=None, help="Custom OpenAI API base URL (e.g., http://localhost:11434/v1 for Ollama)")
 @click.option("--model", default=None, help="Model to use for analysis (default: gpt-4o-mini)")
-def orchestrate(target_url, path, validate, codebase_path, openai_base_url, model):
+@click.option("--file-patterns", default="*.java", help="Comma-separated file patterns to analyze (e.g., '*.py,*.js,*.go')")
+def orchestrate(target_url, path, validate, codebase_path, openai_base_url, model, file_patterns):
     """Run end-to-end vulnerability testing loop: init → enumerate → analyze → record → report"""
     try:
         from pathlib import Path
@@ -374,15 +375,24 @@ def orchestrate(target_url, path, validate, codebase_path, openai_base_url, mode
                 resolved_base_url = openai_base_url or os.getenv("OPENAI_BASE_URL")
                 resolved_model = model or os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 
+                # Parse file patterns
+                patterns_list = [p.strip() for p in file_patterns.split(",")]
+
                 click.echo(f"  Running LLM-based vulnerability analysis...")
                 if resolved_base_url:
                     click.echo(f"  Using custom base URL: {resolved_base_url}")
                 click.echo(f"  Using model: {resolved_model}")
-                click.echo(f"  (Analyzing first 50 Java files)")
+
+                # Dynamic message based on patterns
+                if patterns_list == ["*.java"]:
+                    click.echo(f"  (Analyzing first 50 Java files)")
+                else:
+                    patterns_str = ", ".join(patterns_list)
+                    click.echo(f"  (Analyzing first 50 files: {patterns_str})")
 
                 gpt_findings = analyze_with_gpt(
                     codebase,
-                    file_patterns=["*.java"],
+                    file_patterns=patterns_list,
                     model=resolved_model,
                     base_url=resolved_base_url
                 )
