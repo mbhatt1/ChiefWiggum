@@ -4,6 +4,7 @@ ChiefWiggum Loop command-line interface
 
 import click
 import json
+import os
 from pathlib import Path
 from tabulate import tabulate
 from urllib.parse import urlparse
@@ -323,7 +324,9 @@ def validate(hypothesis, codebase_path, path):
 @click.option("--path", default=".", help="Project root directory")
 @click.option("--validate/--no-validate", default=False, help="Validate hypotheses against codebase")
 @click.option("--codebase-path", default=None, help="Path to target codebase for validation")
-def orchestrate(target_url, path, validate, codebase_path):
+@click.option("--openai-base-url", default=None, help="Custom OpenAI API base URL (e.g., http://localhost:11434/v1 for Ollama)")
+@click.option("--model", default=None, help="Model to use for analysis (default: gpt-4o-mini)")
+def orchestrate(target_url, path, validate, codebase_path, openai_base_url, model):
     """Run end-to-end vulnerability testing loop: init → enumerate → analyze → record → report"""
     try:
         from pathlib import Path
@@ -367,10 +370,22 @@ def orchestrate(target_url, path, validate, codebase_path):
             if codebase.exists():
                 from .llm_analyzer import analyze_with_gpt
 
-                click.echo(f"  Running GPT-based vulnerability analysis...")
+                # Resolve configuration: CLI flags > env vars > defaults
+                resolved_base_url = openai_base_url or os.getenv("OPENAI_BASE_URL")
+                resolved_model = model or os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+
+                click.echo(f"  Running LLM-based vulnerability analysis...")
+                if resolved_base_url:
+                    click.echo(f"  Using custom base URL: {resolved_base_url}")
+                click.echo(f"  Using model: {resolved_model}")
                 click.echo(f"  (Analyzing first 50 Java files)")
 
-                gpt_findings = analyze_with_gpt(codebase, file_patterns=["*.java"])
+                gpt_findings = analyze_with_gpt(
+                    codebase,
+                    file_patterns=["*.java"],
+                    model=resolved_model,
+                    base_url=resolved_base_url
+                )
 
                 if gpt_findings:
                     click.echo(f"\n  ✓ Found {len(gpt_findings)} vulnerabilities")

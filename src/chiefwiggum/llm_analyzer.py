@@ -11,17 +11,24 @@ from pathlib import Path
 from typing import List, Dict, Optional
 from openai import OpenAI
 
-# Initialize OpenAI client
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-
 
 class LLMAnalyzer:
     """Analyze code for vulnerabilities using GPT"""
 
-    def __init__(self, codebase_path: Path, model: str = "gpt-4o-mini"):
+    def __init__(self, codebase_path: Path, model: str = "gpt-4o-mini", base_url: Optional[str] = None):
         self.codebase = Path(codebase_path)
         self.model = model
         self.findings = []
+
+        # Initialize OpenAI client with custom base_url if provided
+        api_key = os.getenv("OPENAI_API_KEY")
+        if base_url:
+            # For Ollama and other local providers, use dummy key if not set
+            if not api_key:
+                api_key = "ollama"
+            self.client = OpenAI(api_key=api_key, base_url=base_url)
+        else:
+            self.client = OpenAI(api_key=api_key)
 
     def analyze_codebase(self, file_patterns: List[str] = None) -> List[Dict]:
         """
@@ -120,7 +127,7 @@ Return ONLY valid JSON array, no other text.
 """
 
         try:
-            response = client.chat.completions.create(
+            response = self.client.chat.completions.create(
                 model=self.model,
                 messages=[
                     {
@@ -167,16 +174,19 @@ Return ONLY valid JSON array, no other text.
         return self.analyze_codebase(file_patterns=["*.java"])
 
 
-def analyze_with_gpt(codebase_path: Path, file_patterns: List[str] = None) -> List[Dict]:
+def analyze_with_gpt(codebase_path: Path, file_patterns: List[str] = None,
+                     model: str = "gpt-4o-mini", base_url: Optional[str] = None) -> List[Dict]:
     """
     Public interface for LLM-based vulnerability analysis
 
     Args:
         codebase_path: Path to the codebase to analyze
         file_patterns: File patterns to analyze (default: ["*.java"])
+        model: Model name to use (default: "gpt-4o-mini")
+        base_url: Custom OpenAI API base URL (e.g., for Ollama)
 
     Returns:
         List of detected vulnerabilities
     """
-    analyzer = LLMAnalyzer(codebase_path)
+    analyzer = LLMAnalyzer(codebase_path, model=model, base_url=base_url)
     return analyzer.analyze_codebase(file_patterns)
