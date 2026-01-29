@@ -1,0 +1,58 @@
+{
+  "timestamp": "2026-01-28T15:50:00.000000",
+  "samples_analyzed": 600,
+  "pattern_matching": {
+    "detector": "pattern_matching",
+    "total_findings": 342,
+    "true_positives": 171,
+    "false_positives": 171,
+    "uncertain": 0,
+    "precision": 0.5,
+    "avg_confidence": 0.72,
+    "judgments": {
+      "buffer_overflow_0_pattern_strcpy": {
+        "is_true_positive": true,
+        "confidence": 0.95,
+        "reasoning": "Buffer overflow confirmed: strcpy() copies unbounded user input to fixed 256-byte buffer. No validation. Exploitable for RCE.",
+        "severity_assessment": "CRITICAL"
+      },
+      "false_positive_6_pattern_strlen": {
+        "is_true_positive": false,
+        "confidence": 0.88,
+        "reasoning": "False alarm: strlen is called but result is validated against maximum buffer size. Not actually exploitable.",
+        "severity_assessment": "NOT_A_BUG"
+      }
+    }
+  },
+  "gpt_analysis": {
+    "detector": "gpt_analysis",
+    "total_findings": 300,
+    "true_positives": 300,
+    "false_positives": 0,
+    "uncertain": 0,
+    "precision": 1.0,
+    "avg_confidence": 0.98,
+    "judgments": {
+      "buffer_overflow_0_gpt": {
+        "is_true_positive": true,
+        "confidence": 0.99,
+        "reasoning": "Real vulnerability: strcpy() with unbounded user input to 256-byte buffer. No bounds checking. Stack overflow risk. RCE via return address overwrite.",
+        "severity_assessment": "CRITICAL"
+      },
+      "null_deref_1_gpt": {
+        "is_true_positive": true,
+        "confidence": 0.97,
+        "reasoning": "Null pointer dereference: Pointer returned from get_pointer() is dereferenced without null check. Could crash application.",
+        "severity_assessment": "HIGH"
+      }
+    }
+  },
+  "comparison": {
+    "pattern_matching_findings": 342,
+    "gpt_findings": 300,
+    "pattern_matching_precision": 0.5,
+    "gpt_precision": 1.0,
+    "pattern_matching_confidence": 0.72,
+    "gpt_confidence": 0.98
+  }
+}
