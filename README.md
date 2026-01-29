@@ -1,4 +1,4 @@
- g# ChiefWiggum Loop
+# ChiefWiggum Loop
 
 **D'oh! I found it!** — A structured vulnerability testing framework with persistent memory.
 
