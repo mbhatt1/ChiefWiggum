@@ -1,4 +1,4 @@
-# ChiefWiggum Loop
+ g# ChiefWiggum Loop
 
 **D'oh! I found it!** — A structured vulnerability testing framework with persistent memory.
 
@@ -18,8 +18,8 @@ ChiefWiggum Loop is a framework for structured security vulnerability analysis t
 ```bash
 # Run end-to-end vulnerability analysis with orchestration
 chiefwiggum orchestrate \
-  --target-url "https://github.com/apache/activemq" \
-  --codebase-path "/tmp/activemq" \
+  --target-url "https://github.com/<repo>" \
+  --codebase-path "/tmp/<repo>" \
   --validate
 
 # Output:
@@ -135,7 +135,7 @@ chiefwiggum record hyp_001 \
   --location "src/RCE.java:123" \
   --description "ClassPathXmlApplicationContext gadget chain confirmed" \
   --action PATCH \
-  --patch-location "org/apache/activemq/openwire/v12/BaseDataStreamMarshaller.java"
+  --patch-location "org/apache/codebase/openwire/v12/BaseDataStreamMarshaller.java"
 ```
 
 ## Project Structure
@@ -282,13 +282,13 @@ Standard hardening controls referenced in reports:
 
 ## Examples
 
-Complete examples with actual ActiveMQ analysis:
+Complete examples with actual codebase analysis:
 
 ```bash
-# Run on Apache ActiveMQ
+# Run on Apache codebase
 chiefwiggum orchestrate \
-  --target-url "https://github.com/apache/activemq" \
-  --codebase-path /path/to/activemq \
+  --target-url "https://github.com/code/codebase" \
+  --codebase-path /path/to/codebase \
   --validate
 
 # Output shows:
