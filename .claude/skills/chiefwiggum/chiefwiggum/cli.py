@@ -13,6 +13,14 @@ from .project import create_project, load_project, get_project_info, init_in_pla
 from .core import Evaluator, EvidenceType
 from .hypothesis_generator import generate_hypotheses as gen_hypotheses
 
+# Import Claude Judge and Parallel Validator
+try:
+    from .claude_judge import ClaudeJudge
+    from .parallel_validator import ParallelValidator
+    HAS_LLM_JUDGE = True
+except ImportError:
+    HAS_LLM_JUDGE = False
+
 
 @click.group()
 def main():
@@ -325,6 +333,10 @@ def validate(hypothesis, codebase_path, path):
 def orchestrate(target_url, path, validate, codebase_path, num_hypotheses):
     """Run end-to-end vulnerability testing loop: init → enumerate → analyze → record → report"""
     try:
+        # Ensure all path parameters are strings
+        path = str(path) if path else "."
+        codebase_path = str(codebase_path) if codebase_path else None
+
         project_path = Path(path)
 
         click.echo("=" * 80)
@@ -371,7 +383,7 @@ def orchestrate(target_url, path, validate, codebase_path, num_hypotheses):
             click.echo(f"  Found {len(hypothesis_files)} hypothesis(es)")
 
             if validate and codebase_path:
-                codebase = Path(codebase_path)
+                codebase = Path(str(codebase_path))
                 if not codebase.exists():
                     click.echo(f"  ⚠ Codebase path not found: {codebase_path}")
                     click.echo(f"    Skipping validation")
@@ -381,90 +393,182 @@ def orchestrate(target_url, path, validate, codebase_path, num_hypotheses):
                     import re
                     validated_count = 0
 
-                    # Pre-load all Java files to search once
+                    # Detect language: Java or Erlang
+                    java_count = sum(1 for _ in codebase.rglob("*.java"))
+                    erl_count = sum(1 for _ in codebase.rglob("*.erl"))
+                    is_erlang = erl_count > java_count
+
+                    # Pre-load all source files to search once
                     click.echo(f"  Loading codebase...")
-                    java_files_content = {}
+                    source_files_content = {}
                     total_files = 0
-                    for java_file in codebase.rglob("*.java"):
-                        try:
-                            java_files_content[str(java_file)] = java_file.read_text()
-                            total_files += 1
-                        except:
-                            continue
-                    click.echo(f"  Loaded {total_files} Java files")
 
-                    # Simple pattern search - find ALL dangerous code patterns
-                    # Only include patterns found in ActiveMQ (verified by grep)
-                    dangerous_patterns = [
-                        ("ObjectInputStream", "ObjectInputStream"),
-                        ("readObject", "readObject"),
-                        ("Class.forName", "Class.forName"),
-                        ("getConstructor", "getConstructor"),
-                        ("newInstance", "newInstance"),
-                        ("DocumentBuilderFactory", "DocumentBuilderFactory"),
-                        ("InitialContext", "InitialContext"),
-                        ("executeQuery", "executeQuery"),
-                        ("executeUpdate", "executeUpdate"),
-                        ("SAXParserFactory", "SAXParserFactory"),
-                    ]
+                    if is_erlang:
+                        click.echo(f"  Detected Erlang codebase")
+                        for erl_file in codebase.rglob("*.erl"):
+                            try:
+                                source_files_content[str(erl_file)] = erl_file.read_text()
+                                total_files += 1
+                            except:
+                                continue
+                        click.echo(f"  Loaded {total_files} Erlang files")
 
-                    # Find all dangerous code in codebase
+                        # Erlang-specific dangerous patterns
+                        dangerous_patterns = [
+                            ("binary_to_term", "binary_to_term"),
+                            ("erl_parse", "erl_parse"),
+                            ("erl_scan", "erl_scan"),
+                            ("os:system", "os:system"),
+                            ("os:cmd", "os:cmd"),
+                            ("erlang:apply", "erlang:apply"),
+                            ("rpc:call", "rpc:call"),
+                            ("rpc:cast", "rpc:cast"),
+                            ("file:read_file", "file:read_file"),
+                            ("file:write_file", "file:write_file"),
+                            ("file:open", "file:open"),
+                        ]
+                    else:
+                        click.echo(f"  Detected Java codebase")
+                        for java_file in codebase.rglob("*.java"):
+                            try:
+                                source_files_content[str(java_file)] = java_file.read_text()
+                                total_files += 1
+                            except:
+                                continue
+                        click.echo(f"  Loaded {total_files} Java files")
+
+                        # Java-specific dangerous patterns
+                        dangerous_patterns = [
+                            ("ObjectInputStream", "ObjectInputStream"),
+                            ("readObject", "readObject"),
+                            ("Class.forName", "Class.forName"),
+                            ("getConstructor", "getConstructor"),
+                            ("newInstance", "newInstance"),
+                            ("DocumentBuilderFactory", "DocumentBuilderFactory"),
+                            ("InitialContext", "InitialContext"),
+                            ("executeQuery", "executeQuery"),
+                            ("executeUpdate", "executeUpdate"),
+                            ("SAXParserFactory", "SAXParserFactory"),
+                        ]
+
+                    # Find all dangerous code in codebase (single patterns)
                     code_findings = {}
                     for pattern_name, pattern_text in dangerous_patterns:
                         code_findings[pattern_name] = []
-                        for file_path, content in java_files_content.items():
+                        for file_path, content in source_files_content.items():
                             if pattern_text in content:
                                 filename = Path(file_path).name
                                 code_findings[pattern_name].append(filename)
 
+                    # NEW: Find gadget CHAINS (multiple related dangerous functions in same file/module)
+                    chain_findings = {}
+                    erlang_chains = {
+                        "deserialization_gadget": ["binary_to_term", "erlang:apply"],
+                        "rpc_reflection": ["distributed:call", "erlang:apply"],
+                        "port_command": ["open_port", "os:cmd"],
+                        "file_traversal": ["file:open", "file:read_file"],
+                        "atom_pollution": ["string:to_atom", "erlang:atom_to_binary"],
+                        "ets_dos": ["ets:select", "ets:select_count"],
+                        "supervisor_injection": ["supervisor:start_child", "erlang:spawn"],
+                        "mnesia_injection": ["mnesia:select", "mnesia:dirty_read"],
+                        "nif_exploit": ["erlang:load_nif", "erlang:nif_call"],
+                        "compile_inject": ["compile:forms", "erl_eval:expr"],
+                    }
+
+                    for chain_name, chain_funcs in erlang_chains.items():
+                        chain_findings[chain_name] = []
+                        # Find files that contain ALL functions in the chain
+                        for file_path, content in source_files_content.items():
+                            if all(func in content for func in chain_funcs):
+                                filename = Path(file_path).name
+                                chain_findings[chain_name].append(filename)
 
                     confirmed_count = 0
-                    for hyp_file in hypothesis_files:
-                        hyp_id = hyp_file.stem
-                        hyp_content = hyp_file.read_text()
+                    validated_count = 0
 
-                        # Extract sink and control from hypothesis
-                        sink_match = re.search(r'- Sink:\s*`?([^`\n]+)`?', hyp_content)
-                        control_match = re.search(r'- Control:\s*\*\*(C-\d+)', hyp_content)
-                        sink = sink_match.group(1).lower() if sink_match else ""
-                        control = control_match.group(1) if control_match else "UNKNOWN"
+                    # Parallel LLM analysis if available
+                    if HAS_LLM_JUDGE and os.getenv("ANTHROPIC_API_KEY"):
+                        click.echo(f"  Preparing batch for parallel LLM analysis...")
+                        validator = ParallelValidator(source_files_content)
+                        findings_list, code_snippets = validator.prepare_batch(hypothesis_files, code_findings)
 
-                        found = False
-                        evidence_list = []
+                        if findings_list:
+                            click.echo(f"  Analyzing {len(findings_list)} findings with Claude (parallel, 5 workers)...")
 
-                        # Check if any dangerous pattern matches this hypothesis
-                        for pattern_name, files_found in code_findings.items():
-                            pattern_name_lower = pattern_name.lower()
-                            if files_found and pattern_name_lower in sink:
-                                found = True
-                                for filename in files_found[:2]:
-                                    evidence_list.append(f"{filename}:{pattern_name}")
+                            def progress_cb(finding_id, judgment, done, total):
+                                status = judgment.get('severity_assessment', 'UNKNOWN')
+                                click.echo(f"    [{done}/{total}] {finding_id}: {status}")
 
-                        # Pattern found = potential vulnerability (INSTRUMENT to investigate)
-                        # Not confirmed until reachability proven
-                        status = "UNCLEAR"
-                        symbol = "⚠"
-
-                        if found:
-                            click.echo(f"    {symbol} {hyp_id}: {status} - dangerous pattern found, needs manual validation", err=False)
-                            for evidence in evidence_list[:2]:
-                                click.echo(f"       → {evidence}")
-
-                            # Record as UNCLEAR with instrumentation needed
-                            evidence_text = "; ".join(evidence_list[:2]) if evidence_list else "Found in codebase"
-                            evaluator.ledger.add_evidence(
-                                hypothesis_id=hyp_id,
-                                evidence_type="unclear",
-                                code_location=evidence_text,
-                                description=f"Dangerous pattern detected in code - requires manual code review to verify REACHABILITY of untrusted input",
-                                action="INSTRUMENT",
-                                control_id=control,
-                                instrumentation=f"Perform data flow analysis: trace untrusted input → {evidence_list[0] if evidence_list else 'sink'} to prove exploitability"
+                            # Parallel batch analysis
+                            judgments = validator.validate_batch_parallel(
+                                findings_list,
+                                code_snippets,
+                                progress_callback=progress_cb
                             )
                         else:
-                            click.echo(f"    {symbol} {hyp_id}: {status}")
+                            judgments = {}
 
-                        validated_count += 1
+                        # Process all hypotheses with cached judgments
+                        for hyp_file in hypothesis_files:
+                            hyp_id = hyp_file.stem
+                            hyp_content = hyp_file.read_text()
+                            validated_count += 1
+
+                            control_match = re.search(r'- Control:\s*\*\*(C-\d+)', hyp_content)
+                            control = control_match.group(1) if control_match else "UNKNOWN"
+
+                            if hyp_id in judgments:
+                                judgment = judgments[hyp_id]
+
+                                if judgment.get("is_true_positive"):
+                                    confirmed_count += 1
+                                    click.echo(f"    ✓ {hyp_id}: CONFIRMED [{control}] (confidence: {judgment.get('confidence', 0):.2f})", err=False)
+
+                                    evaluator.ledger.add_evidence(
+                                        hypothesis_id=hyp_id,
+                                        evidence_type="confirmed",
+                                        code_location=judgment.get('location', ''),
+                                        description=f"LLM-verified vulnerability: {judgment.get('reasoning', 'Real security issue')}",
+                                        action="CONTROL",
+                                        control_id=control
+                                    )
+                                else:
+                                    click.echo(f"    ⚠ {hyp_id}: UNCLEAR - {judgment.get('reasoning', 'Not exploitable')[:50]}...", err=False)
+
+                                    evaluator.ledger.add_evidence(
+                                        hypothesis_id=hyp_id,
+                                        evidence_type="unclear",
+                                        code_location=judgment.get('location', ''),
+                                        description=f"LLM analysis: {judgment.get('reasoning', 'Pattern found but not exploitable')}",
+                                        action="INSTRUMENT",
+                                        control_id=control,
+                                        instrumentation=f"Verify: {judgment.get('reasoning', 'Manual review needed')}"
+                                    )
+                            else:
+                                click.echo(f"    ⚠ {hyp_id}: UNCLEAR")
+
+                    else:
+                        # Fallback: no LLM available
+                        for hyp_file in hypothesis_files:
+                            hyp_id = hyp_file.stem
+                            validated_count += 1
+                            click.echo(f"    ⚠ {hyp_id}: UNCLEAR")
+
+                    # Report gadget chain findings
+                    if chain_findings:
+                        click.echo(f"\n  [GADGET CHAIN ANALYSIS]")
+                        chains_found = sum(1 for files in chain_findings.values() if files)
+                        if chains_found > 0:
+                            click.echo(f"  ⚠ Found {chains_found} potential gadget chains:")
+                            for chain_name, files in chain_findings.items():
+                                if files:
+                                    click.echo(f"    - {chain_name}: {len(files)} file(s) with all chain components")
+                                    for f in files[:3]:
+                                        click.echo(f"      • {f}")
+                                    if len(files) > 3:
+                                        click.echo(f"      ... and {len(files)-3} more")
+                        else:
+                            click.echo(f"  ✓ No gadget chains detected")
 
                     click.echo(f"  ✓ Validated {validated_count} hypotheses")
                     click.echo(f"  ✓ Found {confirmed_count} confirmed vulnerabilities")
@@ -488,7 +592,9 @@ def orchestrate(target_url, path, validate, codebase_path, num_hypotheses):
         click.echo("=" * 80)
 
     except Exception as e:
+        import traceback
         click.echo(f"\n✗ Error: {e}", err=True)
+        click.echo(traceback.format_exc(), err=True)
 
 
 if __name__ == "__main__":

@@ -4,12 +4,21 @@ ChiefWiggum Loop command-line interface
 
 import click
 import json
+import os
+import re
 from pathlib import Path
 from tabulate import tabulate
 from urllib.parse import urlparse
 
 from .project import create_project, load_project, get_project_info, init_in_place, init_from_url
 from .core import Evaluator, EvidenceType, ActionType
+from .hypothesis_generator import generate_hypotheses
+try:
+    from .claude_judge import ClaudeJudge
+    from .parallel_validator import ParallelValidator
+    HAS_LLM = True
+except ImportError:
+    HAS_LLM = False
 
 
 @click.group()
@@ -323,15 +332,18 @@ def validate(hypothesis, codebase_path, path):
 @click.option("--path", default=".", help="Project root directory")
 @click.option("--validate/--no-validate", default=False, help="Validate hypotheses against codebase")
 @click.option("--codebase-path", default=None, help="Path to target codebase for validation")
-def orchestrate(target_url, path, validate, codebase_path):
+@click.option("--generate-hypotheses", "num_hypotheses", type=int, default=0, help="Auto-generate N vulnerability hypotheses (0=skip)")
+def orchestrate(target_url, path, validate, codebase_path, num_hypotheses):
     """Run end-to-end vulnerability testing loop: init → enumerate → analyze → record → report"""
     try:
+        import os
         from pathlib import Path
+        import re
 
         project_path = Path(path)
 
         click.echo("=" * 80)
-        click.echo("ChiefWiggum Loop Orchestration")
+        click.echo("ChiefWiggum Loop Orchestration (with Erlang + Java + Claude)")
         if validate:
             click.echo("(with codebase validation)")
         click.echo("=" * 80)
@@ -351,6 +363,12 @@ def orchestrate(target_url, path, validate, codebase_path):
         evaluator = Evaluator(project_root_str)
         click.echo(f"  ✓ Loaded from {project_root_str}")
 
+        # Phase 2b: Generate hypotheses if requested
+        if num_hypotheses > 0:
+            click.echo(f"\n[2b/5] Generate {num_hypotheses} vulnerability hypotheses...")
+            hyp_count = generate_hypotheses(Path(project_root_str), count=num_hypotheses)
+            click.echo(f"  ✓ Generated/loaded {hyp_count} hypotheses")
+
         # Phase 3: Enumerate and analyze surfaces
         click.echo("\n[3/5] Enumerate attack surfaces...")
         surfaces_file = str(Path(project_root_str) / "surfaces" / "SURFACES.yaml")
@@ -359,57 +377,108 @@ def orchestrate(target_url, path, validate, codebase_path):
         else:
             click.echo(f"  ⚠ No surfaces file")
 
-        # Phase 4: Vulnerability Analysis (LLM-based)
+        # Phase 4: Vulnerability Analysis (Parallel Claude with language detection)
         click.echo("\n[4/5] Analyze code for vulnerabilities...")
+        confirmed_count = 0
+        unclear_count = 0
 
         if validate and codebase_path:
-            codebase = Path(codebase_path)
-            if codebase.exists():
-                from .llm_analyzer import analyze_with_gpt
+            codebase_obj = Path(codebase_path)
+            if codebase_obj.exists():
+                try:
+                    # Load all source files
+                    click.echo(f"  Loading codebase...")
+                    source_files = {}
+                    for src_file in codebase_obj.rglob("*.java"):
+                        try:
+                            source_files[str(src_file)] = src_file.read_text()
+                        except:
+                            pass
+                    for erl_file in codebase_obj.rglob("*.erl"):
+                        try:
+                            source_files[str(erl_file)] = erl_file.read_text()
+                        except:
+                            pass
 
-                click.echo(f"  Running GPT-based vulnerability analysis...")
-                click.echo(f"  (Analyzing first 50 Java files)")
+                    if len(source_files) == 0:
+                        click.echo(f"  ⚠ No Java or Erlang files found")
+                    else:
+                        click.echo(f"  ✓ Loaded {len(source_files)} source files")
 
-                gpt_findings = analyze_with_gpt(codebase, file_patterns=["*.java"])
+                        # Find dangerous patterns
+                        dangerous_patterns = [
+                            ("ObjectInputStream", "ObjectInputStream"),
+                            ("readObject", "readObject"),
+                            ("Class.forName", "Class.forName"),
+                            ("executeQuery", "executeQuery"),
+                            ("InitialContext", "InitialContext"),
+                            ("binary_to_term", "binary_to_term"),
+                            ("erl_parse", "erl_parse"),
+                            ("os:system", "os:system"),
+                            ("os:cmd", "os:cmd"),
+                            ("erlang:apply", "erlang:apply"),
+                            ("rpc:call", "rpc:call"),
+                            ("file:read_file", "file:read_file"),
+                        ]
 
-                if gpt_findings:
-                    click.echo(f"\n  ✓ Found {len(gpt_findings)} vulnerabilities")
+                        code_findings = {}
+                        for pattern_name, pattern_text in dangerous_patterns:
+                            code_findings[pattern_name] = []
+                            for file_path, content in source_files.items():
+                                if pattern_text in content:
+                                    code_findings[pattern_name].append(Path(file_path).name)
 
-                    # Group by severity
-                    critical = [f for f in gpt_findings if f.get('severity') == 'CRITICAL']
-                    high = [f for f in gpt_findings if f.get('severity') == 'HIGH']
-                    medium = [f for f in gpt_findings if f.get('severity') == 'MEDIUM']
-                    low = [f for f in gpt_findings if f.get('severity') == 'LOW']
+                        click.echo(f"  Found {sum(len(v) for v in code_findings.values())} dangerous patterns")
 
-                    if critical:
-                        click.echo(f"\n  🔴 CRITICAL ({len(critical)}):")
-                        for finding in critical[:5]:
-                            click.echo(f"    • {finding['type']} - {finding.get('location', 'unknown')}")
+                        # Parallel Claude validation if available
+                        if HAS_LLM and os.getenv("ANTHROPIC_API_KEY"):
+                            click.echo(f"  Running parallel Claude analysis (5 workers)...")
 
-                    if high:
-                        click.echo(f"\n  🟠 HIGH ({len(high)}):")
-                        for finding in high[:5]:
-                            click.echo(f"    • {finding['type']} - {finding.get('location', 'unknown')}")
+                            # Prepare hypotheses for validation
+                            hyp_dir = Path(project_root_str) / "hypotheses"
+                            hyp_files = list(hyp_dir.glob("hyp_*.md")) if hyp_dir.exists() else []
 
-                    if medium:
-                        click.echo(f"\n  🟡 MEDIUM ({len(medium)}):")
-                        for finding in medium[:3]:
-                            click.echo(f"    • {finding['type']}")
+                            if hyp_files:
+                                validator = ParallelValidator(source_files)
+                                findings_list, code_snippets = validator.prepare_batch(hyp_files, code_findings)
 
-                    # Record in evidence ledger
-                    for finding in gpt_findings:
-                        evaluator.ledger.add_evidence(
-                            hypothesis_id=finding['id'],
-                            evidence_type=EvidenceType.CONFIRMED,
-                            code_location=finding['file'],
-                            description=f"{finding['type']} ({finding.get('severity', 'UNKNOWN')})",
-                            details=finding,
-                            action=ActionType.PATCH,
-                            patch_location=finding['file'],
-                            test_case=f"Verify {finding['type']} is fixed"
-                        )
-                else:
-                    click.echo(f"  ✓ No vulnerabilities found")
+                                if findings_list:
+                                    click.echo(f"  Validating {len(findings_list)} findings...")
+
+                                    judgments = validator.validate_batch_parallel(
+                                        findings_list,
+                                        code_snippets
+                                    )
+
+                                    for hyp_file in hyp_files:
+                                        hyp_id = hyp_file.stem
+                                        hyp_content = hyp_file.read_text()
+
+                                        control_match = re.search(r'- Control:\s*\*\*(C-\d+)', hyp_content)
+                                        control = control_match.group(1) if control_match else "UNKNOWN"
+
+                                        if hyp_id in judgments:
+                                            judgment = judgments[hyp_id]
+                                            if judgment.get("is_true_positive"):
+                                                confirmed_count += 1
+                                                click.echo(f"    ✓ {hyp_id}: CONFIRMED [{control}]")
+                                                evaluator.ledger.add_evidence(
+                                                    hypothesis_id=hyp_id,
+                                                    evidence_type="confirmed",
+                                                    code_location=judgment.get('location', ''),
+                                                    description=judgment.get('reasoning', 'LLM-verified'),
+                                                    action="CONTROL",
+                                                    control_id=control
+                                                )
+                                            else:
+                                                unclear_count += 1
+                        else:
+                            click.echo(f"  (Claude LLM not available)")
+
+                except Exception as scan_err:
+                    import traceback
+                    click.echo(f"  ⚠ Error: {scan_err}")
+                    click.echo(traceback.format_exc())
             else:
                 click.echo(f"  ⚠ Codebase path not found: {codebase_path}")
         else:
@@ -418,6 +487,14 @@ def orchestrate(target_url, path, validate, codebase_path):
 
         # Phase 5: Generate report
         click.echo("\n[5/5] Generate hardening backlog...")
+
+        click.echo("\n" + "=" * 80)
+        click.echo("Vulnerability Summary")
+        click.echo("=" * 80)
+        click.echo(f"Confirmed vulnerabilities: {confirmed_count}")
+        click.echo(f"Unclear/Inconclusive: {unclear_count}")
+        click.echo()
+
         report_output = evaluator.control_map_report()
         click.echo(report_output)
 
@@ -426,7 +503,9 @@ def orchestrate(target_url, path, validate, codebase_path):
         click.echo("=" * 80)
 
     except Exception as e:
+        import traceback
         click.echo(f"\n✗ Error: {e}", err=True)
+        click.echo(traceback.format_exc(), err=True)
 
 
 if __name__ == "__main__":
