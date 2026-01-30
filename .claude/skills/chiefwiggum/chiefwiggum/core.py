@@ -172,7 +172,7 @@ class Evaluator:
     ENHANCED: Now combines pattern matching + semantic analysis for better detection.
     """
 
-    def __init__(self, project_root: Path):
+    def __init__(self, project_root: Path, model: str = None, base_url: str = None):
         self.project_root = Path(project_root)
         self.ledger = EvidenceLedger(self.project_root)
 
@@ -185,11 +185,24 @@ class Evaluator:
                 print(f"Warning: Semantic analyzer not available: {e}")
 
         # Initialize OpenAI LLM if available
+        # Support custom base_url for local LLMs (e.g., Ollama)
+        self.model = model or os.getenv("OPENAI_MODEL", "gpt-4o")
+        self.base_url = base_url or os.getenv("OPENAI_BASE_URL")
+
         self.openai_client = None
-        self.use_llm = os.getenv("OPENAI_API_KEY") is not None and OPENAI_AVAILABLE
+        api_key = os.getenv("OPENAI_API_KEY")
+
+        # For local LLMs with custom base_url, use dummy key if not set
+        if self.base_url and not api_key:
+            api_key = "ollama"
+
+        self.use_llm = (api_key is not None or self.base_url is not None) and OPENAI_AVAILABLE
         if self.use_llm:
             try:
-                self.openai_client = openai.OpenAI()
+                if self.base_url:
+                    self.openai_client = openai.OpenAI(api_key=api_key, base_url=self.base_url)
+                else:
+                    self.openai_client = openai.OpenAI(api_key=api_key)
             except Exception as e:
                 print(f"Warning: OpenAI LLM not available: {e}")
                 self.use_llm = False
@@ -242,7 +255,7 @@ class Evaluator:
 
     def _analyze_with_llm(self, code: str, filepath: str) -> List[Dict]:
         """
-        Analyze code using OpenAI GPT-4o for maximum accuracy vulnerability detection.
+        Analyze code using LLM for maximum accuracy vulnerability detection.
 
         Args:
             code: Source code to analyze
@@ -252,36 +265,53 @@ class Evaluator:
             List of detected vulnerabilities with detailed analysis
         """
         try:
-            prompt = f"""You are an expert security researcher analyzing C/C++ source code for vulnerabilities.
+            prompt = f"""You are a security researcher analyzing code for vulnerabilities.
 
-File: {filepath}
+FILE: {filepath}
 
-Code:
+CODE:
+```
 {code[:5000]}
+```
 
-Analyze this code thoroughly for security vulnerabilities:
-1. Identify real security vulnerabilities (not style issues, not false positives)
-2. For each vulnerability: type, location (line number if identifiable), severity, description
+Find ALL vulnerabilities. For each vulnerability, provide:
+1. Type (e.g., RCE, XXE, SQL Injection, Deserialization, etc.)
+2. Severity (CRITICAL, HIGH, MEDIUM, LOW)
 3. Confidence level: HIGH (definite vulnerability), MEDIUM (likely vulnerability), LOW (possible issue)
+4. CWE number
+5. Location (line/function)
+6. Description of the issue
+7. Impact
+8. How to fix it
 
-Return as JSON array. Example format:
+Format as JSON array. Example:
 [
   {{
-    "type": "buffer-overflow",
-    "location": "{filepath}:45",
-    "description": "strcpy called without bounds checking on line 45",
+    "type": "Deserialization RCE",
     "severity": "CRITICAL",
-    "confidence": "HIGH"
+    "confidence": "HIGH",
+    "cwe": "CWE-502",
+    "location": "line 45, method createThrowable()",
+    "description": "ObjectInputStream.readObject() called without validation",
+    "impact": "Remote code execution via gadget chain",
+    "fix": "Add class allowlist before deserialization"
   }}
 ]
 
-Return ONLY valid JSON array. If no vulnerabilities found, return empty array [].
+Return ONLY valid JSON array, no other text.
 """
 
             response = self.openai_client.chat.completions.create(
-                model="gpt-4o",
+                model=self.model,
                 messages=[
-                    {"role": "user", "content": prompt}
+                    {
+                        "role": "system",
+                        "content": "You are a security researcher analyzing code for vulnerabilities. Always respond with valid JSON only."
+                    },
+                    {
+                        "role": "user",
+                        "content": prompt
+                    }
                 ],
                 temperature=0.1,
                 max_tokens=1000
