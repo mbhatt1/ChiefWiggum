@@ -13,13 +13,15 @@ from pathlib import Path
 from llm_judge import BenchmarkWithJudge
 
 
-def run_evaluation(detectors: list, code_samples: int = 10):
+def run_evaluation(detectors: list, code_samples: int = 10, model: str = "gpt-4o", base_url: Optional[str] = None):
     """
     Run evaluation with LLM judge
 
     Args:
         detectors: List of detector names to compare
         code_samples: Number of code samples to evaluate
+        model: Model to use for judging (default: gpt-4o)
+        base_url: Custom OpenAI API base URL (e.g., for Ollama)
     """
     print("=" * 80)
     print("VULNERABILITY DETECTOR BENCHMARK")
@@ -123,7 +125,7 @@ void process_data(char* input) {
     }
 
     # Initialize benchmark with judge
-    benchmark = BenchmarkWithJudge()
+    benchmark = BenchmarkWithJudge(model=model, base_url=base_url)
 
     # Evaluate each detector
     results = {}
@@ -183,11 +185,30 @@ if __name__ == "__main__":
         default=10,
         help="Number of code samples to evaluate"
     )
+    parser.add_argument(
+        "--openai-base-url",
+        default=None,
+        help="Custom OpenAI API base URL (e.g., http://localhost:11434/v1 for Ollama)"
+    )
+    parser.add_argument(
+        "--model",
+        default=None,
+        help="Model to use for judging (default: gpt-4o)"
+    )
 
     args = parser.parse_args()
     detectors = [d.strip() for d in args.detector.split(",")]
 
-    results = run_evaluation(detectors, code_samples=args.samples)
+    # Resolve configuration: CLI flags > env vars > defaults
+    resolved_base_url = args.openai_base_url or os.getenv("OPENAI_BASE_URL")
+    resolved_model = args.model or os.getenv("OPENAI_MODEL", "gpt-4o")
+
+    results = run_evaluation(
+        detectors,
+        code_samples=args.samples,
+        model=resolved_model,
+        base_url=resolved_base_url
+    )
 
     # Exit with status based on results
     sys.exit(0)

@@ -15,15 +15,22 @@ import re
 from typing import List, Dict, Optional, Tuple
 from openai import OpenAI
 
-# Initialize OpenAI client
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-
 
 class LLMJudge:
     """Uses GPT-4o to judge vulnerability findings"""
 
-    def __init__(self, model: str = "gpt-4o"):
+    def __init__(self, model: str = "gpt-4o", base_url: Optional[str] = None):
         self.model = model
+
+        # Initialize OpenAI client with custom base_url if provided
+        api_key = os.getenv("OPENAI_API_KEY")
+        if base_url:
+            # For Ollama and other local providers, use dummy key if not set
+            if not api_key:
+                api_key = "ollama"
+            self.client = OpenAI(api_key=api_key, base_url=base_url)
+        else:
+            self.client = OpenAI(api_key=api_key)
 
     def judge_finding(
         self,
@@ -75,7 +82,7 @@ Respond ONLY as valid JSON:
 }}"""
 
         try:
-            response = client.chat.completions.create(
+            response = self.client.chat.completions.create(
                 model=self.model,
                 messages=[
                     {
@@ -195,7 +202,7 @@ Respond ONLY as valid JSON:
 }}"""
 
         try:
-            response = client.chat.completions.create(
+            response = self.client.chat.completions.create(
                 model=self.model,
                 messages=[
                     {"role": "system", "content": "You are a security researcher. Respond with valid JSON only."},
@@ -227,8 +234,8 @@ Respond ONLY as valid JSON:
 class BenchmarkWithJudge:
     """Run benchmark evaluation with LLM judge as ground truth"""
 
-    def __init__(self):
-        self.judge = LLMJudge()
+    def __init__(self, model: str = "gpt-4o", base_url: Optional[str] = None):
+        self.judge = LLMJudge(model=model, base_url=base_url)
 
     def evaluate_detector_findings(
         self,
