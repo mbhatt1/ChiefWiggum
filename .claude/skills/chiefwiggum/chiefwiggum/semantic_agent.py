@@ -1,20 +1,26 @@
 """
-Universal Semantic Vulnerability Discovery Agent
+Universal Semantic Vulnerability Discovery Agent with AI-Powered Cognitive Loop
 
-Core vulnerability hunting engine that:
-- Analyzes code semantically (understands meaning, not patterns)
-- Asks universal cognitive questions
-- Finds vulnerability patterns across any language
-- Discovers exploit chains
-- Generates patches and tests
-- Learns and improves with each iteration
+Uses Claude API to perform genuine semantic analysis:
+- Asks universal questions about code SEMANTICALLY (not just pattern matching)
+- Claude analyzes code and finds vulnerabilities based on understanding
+- Iteratively refines questions based on findings
+- Generates patches and tests via AI
+- Works across any language/framework
 """
 
 import json
+import os
 from dataclasses import dataclass, field
 from typing import List, Dict, Optional, Set
 from pathlib import Path
 from enum import Enum
+
+try:
+    from anthropic import Anthropic
+    HAS_ANTHROPIC = True
+except ImportError:
+    HAS_ANTHROPIC = False
 
 
 class VulnerabilitySeverity(Enum):
@@ -74,16 +80,24 @@ class ExploitChain:
 
 class UniversalVulnerabilityAgent:
     """
-    Universal semantic vulnerability discovery agent.
+    Universal semantic vulnerability discovery agent with AI-powered cognitive loop.
 
-    Works on ANY codebase:
-    - Java, Python, JavaScript, Go, Rust, C, etc.
+    Uses Claude to semantically analyze code and find exploitable vulnerabilities
+    across ANY language/framework:
+    - Java, Python, JavaScript, Go, Rust, C, Erlang, etc.
     - RPC, APIs, backends, frontends
-    - Parameter injection, RCE, auth bypass, XXE, etc.
+    - Parameter injection, RCE, auth bypass, XXE, deserialization, etc.
     """
 
     def __init__(self, threat_model: Dict = None):
         """Initialize the agent with optional threat model context"""
+        if HAS_ANTHROPIC and os.getenv("ANTHROPIC_API_KEY"):
+            self.client = Anthropic()
+            self.use_ai = True
+        else:
+            self.client = None
+            self.use_ai = False
+
         self.threat_model = threat_model or {}
         self.vulnerabilities: List[Vulnerability] = []
         self.patterns: List[Pattern] = []
@@ -92,78 +106,399 @@ class UniversalVulnerabilityAgent:
         self.codebase_content: Dict[str, str] = {}
         self.iteration_count = 0
         self.max_iterations = 5
+        self.conversation_history: List[Dict] = []
 
     def hunt(self, codebase_path: str) -> List[Vulnerability]:
         """
         Hunt for ALL exploitable vulnerabilities in codebase.
 
-        Universal approach:
-        1. Load codebase
-        2. Ask semantic questions
-        3. Find vulnerabilities
-        4. Extract patterns
-        5. Find similar code (pattern matching)
-        6. Loop back with refined questions
+        If Claude API available: Uses semantic analysis via AI
+        Otherwise: Falls back to pattern matching
         """
         self.codebase_path = Path(codebase_path)
         self._load_codebase()
 
-        # Initialize question queue with universal questions
+        print(f"\n{'='*80}")
+        if self.use_ai:
+            print("UNIVERSAL VULNERABILITY DISCOVERY - AI-POWERED COGNITIVE LOOP")
+        else:
+            print("UNIVERSAL VULNERABILITY DISCOVERY - PATTERN MATCHING MODE")
+        print(f"{'='*80}\n")
+        print(f"Target: {codebase_path}")
+        print(f"Files loaded: {len(self.codebase_content)}")
+        print(f"Using AI: {self.use_ai}\n")
+
+        if self.use_ai:
+            return self._hunt_with_ai()
+        else:
+            return self._hunt_with_patterns()
+
+    def _hunt_with_ai(self) -> List[Vulnerability]:
+        """Hunt using Claude AI for semantic analysis"""
+        # Initialize conversation with Claude
+        self._initialize_claude_session()
+
+        # Universal questions for cognitive loop
+        questions = self._get_universal_questions()
+        asked: Set[str] = set()
+
+        # Cognitive loop with AI
+        while self.iteration_count < self.max_iterations and questions:
+            self.iteration_count += 1
+            print(f"\n--- ITERATION {self.iteration_count} ---\n")
+
+            question = questions.pop(0)
+            if question in asked:
+                continue
+            asked.add(question)
+
+            # Ask Claude the semantic question
+            print(f"Q: {question}\n")
+            findings = self._ask_claude_semantic(question)
+
+            # Process findings
+            for finding in findings:
+                if finding:
+                    vuln = self._construct_vulnerability(finding)
+                    if vuln and vuln.is_exploitable():
+                        if not self._already_found(vuln):
+                            self.vulnerabilities.append(vuln)
+                            print(f"✓ Found: {vuln.title}")
+                            print(f"  Location: {vuln.location}")
+                            print(f"  Severity: {vuln.severity:.1f}/10\n")
+
+                            # Ask follow-up about similar code
+                            follow_up = f"Are there OTHER instances of '{vuln.pattern}' elsewhere?"
+                            if follow_up not in asked:
+                                questions.append(follow_up)
+
+            # Generate follow-ups
+            if self.vulnerabilities:
+                follow_ups = self._generate_followup_questions()
+                questions.extend(follow_ups)
+
+        print(f"\n{'='*80}")
+        print(f"✓ Hunt complete ({self.iteration_count} iterations)")
+        print(f"  Found {len(self.vulnerabilities)} vulnerabilities")
+        print(f"  Patterns learned: {len(self.patterns)}")
+        print(f"  Chains identified: {len(self.chains)}\n")
+
+        # Post-processing with AI
+        self._generate_patches_with_claude()
+        self._identify_exploit_chains_with_claude()
+        self._prioritize_by_threat()
+
+        return self.vulnerabilities
+
+    def _hunt_with_patterns(self) -> List[Vulnerability]:
+        """Hunt using pattern matching (fallback)"""
         question_queue = self._get_universal_questions()
         asked_questions: Set[str] = set()
 
-        # Iterative hunting loop
         while self.iteration_count < self.max_iterations and question_queue:
             self.iteration_count += 1
 
             question = question_queue.pop(0)
             if question in asked_questions:
                 continue
-
             asked_questions.add(question)
 
-            # Ask code the semantic question
             findings = self._ask_code(question)
 
-            # Process each finding
             for finding in findings:
                 vuln = self._analyze_finding(finding, question)
-
                 if vuln and vuln.is_exploitable():
-                    # Check if we already found this
                     if not self._already_found(vuln):
                         self.vulnerabilities.append(vuln)
-
-                        # Extract pattern
                         pattern = self._extract_pattern(vuln)
                         if pattern:
                             self.patterns.append(pattern)
 
-                            # Find similar code
-                            similar = self._find_similar_by_semantics(pattern)
-                            for match in similar:
-                                if match not in asked_questions:
-                                    question_queue.append(
-                                        f"Is {match} exploitable like {vuln.title}?"
-                                    )
-
-                            # Find exploit chains
-                            chains = self._find_chains()
-                            for chain in chains:
-                                if chain not in self.chains:
-                                    self.chains.append(chain)
-
-            # Generate follow-up questions
             if self.vulnerabilities:
                 follow_ups = self._generate_followup_questions()
                 question_queue.extend(follow_ups)
 
-        # Post-processing
         self._verify_exploitability()
         self._generate_patches()
         self._prioritize_by_threat()
 
         return self.vulnerabilities
+
+    def _initialize_claude_session(self):
+        """Start Claude conversation session"""
+        system_prompt = """You are an expert security code analyzer with deep knowledge of:
+- Vulnerability patterns across all languages (Java, Python, JavaScript, Go, Erlang, etc.)
+- Exploitation techniques
+- Secure coding practices
+
+Analyze code SEMANTICALLY to find EXPLOITABLE vulnerabilities.
+Focus on real risks, not false positives.
+
+For each vulnerability finding, respond with this EXACT format:
+
+FINDING:
+- Title: [short vulnerability name]
+- Location: [file path:line or range]
+- Severity: [1-10 number only]
+- Description: [why it's exploitable]
+- Exploit Path: [how to exploit it]
+"""
+
+        # Load code samples for context
+        code_summary = self._format_codebase_for_claude()
+
+        self.conversation_history = [
+            {
+                "role": "user",
+                "content": f"Here is the codebase to analyze:\n\n{code_summary}"
+            }
+        ]
+
+        # Get Claude's initial understanding
+        response = self.client.messages.create(
+            model="claude-opus-4-5-20251101",
+            max_tokens=1000,
+            system=system_prompt,
+            messages=self.conversation_history
+        )
+
+        self.conversation_history.append({
+            "role": "assistant",
+            "content": response.content[0].text
+        })
+
+    def _format_codebase_for_claude(self) -> str:
+        """Format codebase for Claude analysis"""
+        # Get overview of files
+        file_summary = []
+        for path in list(self.codebase_content.keys())[:30]:
+            size = len(self.codebase_content[path])
+            file_summary.append(f"  {path}: {size} bytes")
+
+        # Get code samples from key files
+        samples = []
+        for path, content in list(self.codebase_content.items())[:10]:
+            if len(content) < 2000:
+                samples.append(f"\n=== {path} ===\n{content}")
+            else:
+                samples.append(f"\n=== {path} ===\n{content[:1500]}...(truncated)")
+
+        return f"""
+CODEBASE OVERVIEW:
+Total files: {len(self.codebase_content)}
+Languages: {self._detect_languages()}
+
+Key files:
+{''.join(file_summary)}
+
+CODE SAMPLES:
+{''.join(samples)}
+"""
+
+    def _detect_languages(self) -> str:
+        """Detect programming languages in codebase"""
+        extensions = set()
+        for path in self.codebase_content.keys():
+            ext = Path(path).suffix
+            if ext:
+                extensions.add(ext)
+        return ", ".join(sorted(extensions))
+
+    def _ask_claude_semantic(self, question: str) -> List[Dict]:
+        """Ask Claude semantic question about code"""
+        self.conversation_history.append({
+            "role": "user",
+            "content": f"""
+{question}
+
+Analyze the codebase and report ONLY exploitable vulnerabilities.
+For each one, use this exact format:
+
+FINDING:
+- Title: [vulnerability name]
+- Location: [file:line]
+- Severity: [1-10]
+- Description: [why exploitable]
+- Exploit Path: [how to exploit]
+
+Be concise. Avoid false positives from test code or third-party libraries unless in production.
+"""
+        })
+
+        response = self.client.messages.create(
+            model="claude-opus-4-5-20251101",
+            max_tokens=3000,
+            messages=self.conversation_history
+        )
+
+        analysis = response.content[0].text
+        self.conversation_history.append({
+            "role": "assistant",
+            "content": analysis
+        })
+
+        return self._parse_findings(analysis)
+
+    def _parse_findings(self, text: str) -> List[Dict]:
+        """Parse FINDING blocks from Claude response"""
+        findings = []
+        parts = text.split("FINDING:")
+
+        for part in parts[1:]:
+            if not part.strip():
+                continue
+
+            finding = {}
+            for line in part.split('\n'):
+                line = line.strip()
+                if line.startswith('- Title:'):
+                    finding['title'] = line.replace('- Title:', '').strip()
+                elif line.startswith('- Location:'):
+                    finding['location'] = line.replace('- Location:', '').strip()
+                elif line.startswith('- Severity:'):
+                    try:
+                        finding['severity'] = float(line.replace('- Severity:', '').strip())
+                    except:
+                        finding['severity'] = 5.0
+                elif line.startswith('- Description:'):
+                    finding['description'] = line.replace('- Description:', '').strip()
+                elif line.startswith('- Exploit Path:'):
+                    finding['exploit'] = line.replace('- Exploit Path:', '').strip()
+
+            if finding.get('title'):
+                findings.append(finding)
+
+        return findings
+
+    def _construct_vulnerability(self, finding: Dict) -> Optional[Vulnerability]:
+        """Convert Claude finding to Vulnerability"""
+        if not finding.get('title'):
+            return None
+
+        return Vulnerability(
+            id=f"auto_{len(self.vulnerabilities)}",
+            title=finding.get('title', ''),
+            location=finding.get('location', ''),
+            severity=finding.get('severity', 5.0),
+            pattern='claude_analyzed',
+            entry_point='network',
+            sink=self._infer_sink(finding),
+            exploitability=min(0.95, finding.get('severity', 5.0) / 10.0),
+            exploit_chain=finding.get('exploit')
+        )
+
+    def _infer_sink(self, finding: Dict) -> str:
+        """Infer dangerous sink type from finding"""
+        text = (finding.get('title', '') + finding.get('description', '')).lower()
+        if any(s in text for s in ['exec', 'rce', 'process', 'runtime']):
+            return 'Remote Code Execution'
+        elif any(s in text for s in ['deserial', 'object', 'pickle']):
+            return 'Deserialization'
+        elif any(s in text for s in ['xxe', 'xml']):
+            return 'XXE Injection'
+        elif any(s in text for s in ['ssrf', 'request']):
+            return 'SSRF'
+        elif any(s in text for s in ['auth', 'token']):
+            return 'Authentication Bypass'
+        elif any(s in text for s in ['sql']):
+            return 'SQL Injection'
+        return 'Code Injection'
+
+    def _generate_patches_with_claude(self):
+        """Use Claude to generate patches"""
+        if not self.vulnerabilities:
+            return
+
+        print(f"\nGenerating patches with Claude AI...\n")
+
+        for vuln in self.vulnerabilities[:3]:  # Top 3
+            self.conversation_history.append({
+                "role": "user",
+                "content": f"""
+Generate a security patch for:
+- Title: {vuln.title}
+- Location: {vuln.location}
+- Severity: {vuln.severity}/10
+
+Provide:
+PATCH CODE:
+[code to fix]
+
+REGRESSION TEST:
+[test to verify fix]
+
+CONTROL:
+[C-001 to C-012]
+"""
+            })
+
+            response = self.client.messages.create(
+                model="claude-opus-4-5-20251101",
+                max_tokens=1500,
+                messages=self.conversation_history
+            )
+
+            patch_text = response.content[0].text
+            self.conversation_history.append({
+                "role": "assistant",
+                "content": patch_text
+            })
+
+            vuln.patch = self._extract_section(patch_text, "PATCH CODE")
+            vuln.test = self._extract_section(patch_text, "REGRESSION TEST")
+            vuln.control = self._extract_section(patch_text, "CONTROL")
+
+    def _identify_exploit_chains_with_claude(self):
+        """Use Claude to find exploit chains"""
+        if len(self.vulnerabilities) < 2:
+            return
+
+        print(f"Identifying exploit chains...\n")
+
+        vuln_list = "\n".join([f"- {v.title} ({v.severity:.1f}/10)" for v in self.vulnerabilities[:10]])
+
+        self.conversation_history.append({
+            "role": "user",
+            "content": f"""
+Found vulnerabilities:
+{vuln_list}
+
+Identify 2-3 attack chains where multiple vulnerabilities combine for greater impact.
+Explain sequence and overall impact.
+"""
+        })
+
+        response = self.client.messages.create(
+            model="claude-opus-4-5-20251101",
+            max_tokens=1000,
+            messages=self.conversation_history
+        )
+
+        print(response.content[0].text)
+
+    def _extract_section(self, text: str, section: str) -> str:
+        """Extract section from text"""
+        if section not in text:
+            return ""
+        parts = text.split(section)
+        if len(parts) < 2:
+            return ""
+        lines = parts[1].split('\n')[1:6]
+        return '\n'.join(lines)
+
+    def _already_found(self, vuln: Vulnerability) -> bool:
+        """Check if already found"""
+        for existing in self.vulnerabilities:
+            if existing.location == vuln.location and existing.title == vuln.title:
+                return True
+        return False
+
+    def _generate_followup_questions(self) -> List[str]:
+        """Generate follow-up questions"""
+        if not self.vulnerabilities:
+            return []
+        latest = self.vulnerabilities[-1]
+        return [f"Are there similar vulnerabilities to '{latest.title}' elsewhere?"]
 
     def _load_codebase(self):
         """Load all code files from codebase"""
