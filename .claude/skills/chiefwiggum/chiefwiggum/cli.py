@@ -12,6 +12,7 @@ from urllib.parse import urlparse
 from .project import create_project, load_project, get_project_info, init_in_place, init_from_url
 from .core import Evaluator, EvidenceType
 from .hypothesis_generator import generate_hypotheses as gen_hypotheses
+from .agent_cli import agent
 
 # Import Claude Judge and Parallel Validator
 try:
@@ -26,6 +27,10 @@ except ImportError:
 def main():
     """ChiefWiggum Loop - D'oh! I found it!"""
     pass
+
+
+# Add agent commands as subgroup
+main.add_command(agent, name='hunt')
 
 
 @main.command()
