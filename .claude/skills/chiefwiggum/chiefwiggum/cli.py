@@ -322,7 +322,12 @@ def validate(hypothesis, codebase_path, path):
 @click.option("--validate/--no-validate", default=False, help="Validate hypotheses against codebase")
 @click.option("--codebase-path", default=None, help="Path to target codebase for validation")
 @click.option("--generate-hypotheses", "num_hypotheses", type=int, default=100, help="Auto-generate N vulnerability hypotheses (default: 100)")
-def orchestrate(target_url, path, validate, codebase_path, num_hypotheses):
+@click.option("--openai-base-url", default=None, help="Custom OpenAI API base URL (e.g., http://localhost:11434/v1 for Ollama)")
+@click.option("--model", default=None, help="Model to use for analysis (default: gpt-4o)")
+@click.option("--file-patterns", default="*.java", help="Comma-separated file patterns to analyze (e.g., '*.py,*.js,*.go')")
+@click.option("--max-files", default=50, type=int, help="Maximum number of files to analyze (default: 50)")
+@click.option("--scan-all", is_flag=True, help="Scan all files (ignores --max-files limit)")
+def orchestrate(target_url, path, validate, codebase_path, num_hypotheses, openai_base_url, model, file_patterns, max_files, scan_all):
     """Run end-to-end vulnerability testing loop: init → enumerate → analyze → record → report"""
     try:
         project_path = Path(path)
@@ -345,8 +350,16 @@ def orchestrate(target_url, path, validate, codebase_path, num_hypotheses):
         # Phase 2: Load project
         click.echo("\n[2/5] Load project...")
         project_root_str = load_project(str(project_path))
-        evaluator = Evaluator(project_root_str)
+
+        # Resolve configuration: CLI flags > env vars > defaults
+        resolved_base_url = openai_base_url or os.getenv("OPENAI_BASE_URL")
+        resolved_model = model or os.getenv("OPENAI_MODEL", "gpt-4o")
+
+        evaluator = Evaluator(project_root_str, model=resolved_model, base_url=resolved_base_url)
         click.echo(f"  ✓ Loaded from {project_root_str}")
+        if resolved_base_url:
+            click.echo(f"  Using custom base URL: {resolved_base_url}")
+        click.echo(f"  Using model: {resolved_model}")
 
         # Phase 2b: Generate hypotheses if needed
         if num_hypotheses > 0:
@@ -381,17 +394,37 @@ def orchestrate(target_url, path, validate, codebase_path, num_hypotheses):
                     import re
                     validated_count = 0
 
-                    # Pre-load all Java files to search once
+                    # Parse file patterns
+                    patterns_list = [p.strip() for p in file_patterns.split(",")]
+
+                    # Determine file limit
+                    effective_max_files = None if scan_all else max_files
+
+                    # Quick count of matching files for accurate display
+                    all_files = []
+                    for pattern in patterns_list:
+                        all_files.extend(codebase.rglob(pattern))
+                    total_count = len(all_files)
+
+                    # Pre-load files matching patterns to search once
                     click.echo(f"  Loading codebase...")
-                    java_files_content = {}
+                    files_content = {}
                     total_files = 0
-                    for java_file in codebase.rglob("*.java"):
+                    for source_file in all_files:
+                        if effective_max_files is not None and total_files >= effective_max_files:
+                            break
                         try:
-                            java_files_content[str(java_file)] = java_file.read_text()
+                            files_content[str(source_file)] = source_file.read_text()
                             total_files += 1
                         except:
                             continue
-                    click.echo(f"  Loaded {total_files} Java files")
+
+                    patterns_str = ", ".join(patterns_list)
+                    if scan_all:
+                        click.echo(f"  Loaded {total_files} files ({patterns_str})")
+                    else:
+                        analyze_count = min(total_count, max_files)
+                        click.echo(f"  Loaded {total_files} of {total_count} files ({patterns_str})")
 
                     # Simple pattern search - find ALL dangerous code patterns
                     # Only include patterns found in ActiveMQ (verified by grep)
@@ -412,7 +445,7 @@ def orchestrate(target_url, path, validate, codebase_path, num_hypotheses):
                     code_findings = {}
                     for pattern_name, pattern_text in dangerous_patterns:
                         code_findings[pattern_name] = []
-                        for file_path, content in java_files_content.items():
+                        for file_path, content in files_content.items():
                             if pattern_text in content:
                                 filename = Path(file_path).name
                                 code_findings[pattern_name].append(filename)

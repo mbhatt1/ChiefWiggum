@@ -4,6 +4,7 @@ ChiefWiggum Loop command-line interface
 
 import click
 import json
+import os
 from pathlib import Path
 from tabulate import tabulate
 from urllib.parse import urlparse
@@ -323,7 +324,12 @@ def validate(hypothesis, codebase_path, path):
 @click.option("--path", default=".", help="Project root directory")
 @click.option("--validate/--no-validate", default=False, help="Validate hypotheses against codebase")
 @click.option("--codebase-path", default=None, help="Path to target codebase for validation")
-def orchestrate(target_url, path, validate, codebase_path):
+@click.option("--openai-base-url", default=None, help="Custom OpenAI API base URL (e.g., http://localhost:11434/v1 for Ollama)")
+@click.option("--model", default=None, help="Model to use for analysis (default: gpt-4o-mini)")
+@click.option("--file-patterns", default="*.java", help="Comma-separated file patterns to analyze (e.g., '*.py,*.js,*.go')")
+@click.option("--max-files", default=50, type=int, help="Maximum number of files to analyze (default: 50)")
+@click.option("--scan-all", is_flag=True, help="Scan all files (ignores --max-files limit)")
+def orchestrate(target_url, path, validate, codebase_path, openai_base_url, model, file_patterns, max_files, scan_all):
     """Run end-to-end vulnerability testing loop: init → enumerate → analyze → record → report"""
     try:
         from pathlib import Path
@@ -367,10 +373,42 @@ def orchestrate(target_url, path, validate, codebase_path):
             if codebase.exists():
                 from .llm_analyzer import analyze_with_gpt
 
-                click.echo(f"  Running GPT-based vulnerability analysis...")
-                click.echo(f"  (Analyzing first 50 Java files)")
+                # Resolve configuration: CLI flags > env vars > defaults
+                resolved_base_url = openai_base_url or os.getenv("OPENAI_BASE_URL")
+                resolved_model = model or os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 
-                gpt_findings = analyze_with_gpt(codebase, file_patterns=["*.java"])
+                # Parse file patterns
+                patterns_list = [p.strip() for p in file_patterns.split(",")]
+
+                # Determine file limit
+                effective_max_files = None if scan_all else max_files
+
+                # Quick count of matching files for accurate display
+                all_files = []
+                for pattern in patterns_list:
+                    all_files.extend(codebase.rglob(pattern))
+                total_count = len(all_files)
+
+                click.echo(f"  Running LLM-based vulnerability analysis...")
+                if resolved_base_url:
+                    click.echo(f"  Using custom base URL: {resolved_base_url}")
+                click.echo(f"  Using model: {resolved_model}")
+
+                # Display file count message
+                patterns_str = ", ".join(patterns_list)
+                if scan_all:
+                    click.echo(f"  (Analyzing all {total_count} files: {patterns_str})")
+                else:
+                    analyze_count = min(total_count, max_files)
+                    click.echo(f"  (Analyzing first {analyze_count} of {total_count} files: {patterns_str})")
+
+                gpt_findings = analyze_with_gpt(
+                    codebase,
+                    file_patterns=patterns_list,
+                    model=resolved_model,
+                    base_url=resolved_base_url,
+                    max_files=effective_max_files
+                )
 
                 if gpt_findings:
                     click.echo(f"\n  ✓ Found {len(gpt_findings)} vulnerabilities")

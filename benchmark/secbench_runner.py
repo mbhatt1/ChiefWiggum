@@ -65,8 +65,10 @@ class EvaluationMetrics:
 class SecBenchEvaluator:
     """Main evaluation harness"""
 
-    def __init__(self, config_path: str):
+    def __init__(self, config_path: str, model: str = "gpt-4o", base_url: Optional[str] = None):
         self.config = self._load_config(config_path)
+        self.model = model
+        self.base_url = base_url
         self.results_dir = Path(self.config.get("results_dir", "benchmark/results"))
         self.results_dir.mkdir(parents=True, exist_ok=True)
         self.vulnerabilities: List[VulnerabilityInstance] = []
@@ -193,7 +195,14 @@ class SecBenchEvaluator:
         try:
             import openai
 
-            client = openai.OpenAI()
+            # Use instance configuration
+            api_key = os.getenv("OPENAI_API_KEY")
+            if self.base_url:
+                if not api_key:
+                    api_key = "ollama"
+                client = openai.OpenAI(api_key=api_key, base_url=self.base_url)
+            else:
+                client = openai.OpenAI(api_key=api_key)
 
             prompt = f"""You are an expert security researcher analyzing C/C++ vulnerabilities for accuracy.
 
@@ -222,7 +231,7 @@ Respond ONLY as valid JSON:
 }}"""
 
             response = client.chat.completions.create(
-                model="gpt-4o",
+                model=self.model,
                 messages=[
                     {"role": "user", "content": prompt}
                 ],
@@ -281,11 +290,22 @@ Respond ONLY as valid JSON:
         try:
             import openai
 
-            client = openai.OpenAI()
+            # Use instance configuration
+            api_key = os.getenv("OPENAI_API_KEY")
+            if self.base_url:
+                if not api_key:
+                    api_key = "ollama"
+                client = openai.OpenAI(api_key=api_key, base_url=self.base_url)
+            else:
+                client = openai.OpenAI(api_key=api_key)
 
             # For accuracy: use gpt-4o for opus, gpt-4o-mini for haiku
             # Both now use enhanced prompts
-            openai_model = "gpt-4o" if model == "opus" else "gpt-4o-mini"
+            # If custom model is set, use it; otherwise use model-specific defaults
+            if self.model != "gpt-4o":
+                openai_model = self.model
+            else:
+                openai_model = "gpt-4o" if model == "opus" else "gpt-4o-mini"
 
             prompt = f"""You are an expert security researcher analyzing C/C++ vulnerabilities.
 
@@ -530,11 +550,25 @@ def main():
         default=10,
         help="Number of parallel workers (default 10)"
     )
+    parser.add_argument(
+        "--openai-base-url",
+        default=None,
+        help="Custom OpenAI API base URL (e.g., http://localhost:11434/v1 for Ollama)"
+    )
+    parser.add_argument(
+        "--model",
+        default=None,
+        help="Model to use for analysis (default: gpt-4o)"
+    )
 
     args = parser.parse_args()
 
-    # Create evaluator
-    evaluator = SecBenchEvaluator(args.config)
+    # Resolve configuration: CLI flags > env vars > defaults
+    resolved_base_url = args.openai_base_url or os.getenv("OPENAI_BASE_URL")
+    resolved_model = args.model or os.getenv("OPENAI_MODEL", "gpt-4o")
+
+    # Create evaluator with configuration
+    evaluator = SecBenchEvaluator(args.config, model=resolved_model, base_url=resolved_base_url)
 
     # Load dataset
     evaluator.load_dataset(args.dataset)
